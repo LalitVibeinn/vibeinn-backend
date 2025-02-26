@@ -1,5 +1,5 @@
 import express from "express";
-import { generateAblyToken, sendMessage,createChat,getChatMessages } from "../Controller/chat.controller";
+import { generateAblyToken, sendMessage,createChat,getChatMessages } from "../Controller/Chat.controller";
 // import { authenticateUser } from "../Controller/Auth.controller";
 import { authenticate } from "../Config/clerksetup";
 
