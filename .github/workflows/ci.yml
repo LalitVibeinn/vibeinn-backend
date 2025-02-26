@@ -1,0 +1,90 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - staging
+      - dev
+      - main
+
+jobs:
+  build-nodejs-app:
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 20.x
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Node Modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install Dependencies
+        run: npm install
+        
+
+  build-docker-image:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    services:
+      dockerd:
+        image: docker:latest
+
+    needs: build-nodejs-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+          
+      - name: Print AWS Version
+        run: aws --version
+        
+      - name: Print Docker Info
+        run: docker info
+        
+      - name: Print Node.js Version
+        run: node -v
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: 0xanujkumar
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Determine Environment
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+            ENV="vibeinn-backend"
+          elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
+            ENV="vibeinn-backend"
+          else
+            ENV="vibeinn-backend"
+          fi
+          echo "ENV=$ENV" >> $GITHUB_ENV
+
+      - name: Fetch API Service Secrets
+        run: |
+          npm install axios
+          CMD_STRING="aws secretsmanager get-secret-value --query SecretString --output text --secret-id"
+          apiServiceSecrets=$(echo "$CMD_STRING $ENV" | bash)
+          apiServiceEnvStatus=$(node envWriter.js "$apiServiceSecrets")
+          echo "The api-service env fetching status = $apiServiceEnvStatus"
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ghcr.io/0xanujkumar/vibeinn_backend:$ENV .
+          docker push ghcr.io/0xanujkumar/vibeinn_backend:$ENV
