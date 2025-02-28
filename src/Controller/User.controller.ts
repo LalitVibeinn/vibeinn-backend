@@ -9,12 +9,9 @@ import { sequelize } from "../Config/Database.config";
 import axios from "axios";
 import {Op} from "sequelize";
 
-
-
 const SECRET_KEY = process.env.CLERK_SECRET_KEY as string;
 
 ////
-
 
 
 // ✅ Follow a User
@@ -835,6 +832,8 @@ export const getUserDetailsByIdentifier = async (req: Request, res: Response) =>
 //included true or false
 
 
+
+
 export const savePersonalityType = async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers.authorization;
@@ -895,7 +894,7 @@ export const getPersonalityType = async (req: Request, res: Response) => {
 
     const user = await User.findOne({ where: { username } });
 
-    if (!user) {
+    if (!user) {  
       return res.status(404).json({ message: "User not found" });
     }
 

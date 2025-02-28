@@ -96,8 +96,6 @@ export const authenticateUser = async (request: MyRequest, response: Response, n
       return response.status(500).json({ message: "Internal server error", error: error.message });
     }
   };
-  
-  
 
 
 // export const generateJwt = async (req: MyRequest, res: Response) => {
