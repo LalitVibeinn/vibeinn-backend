@@ -125,6 +125,15 @@ export default class User extends Model {
   @Column(DataType.STRING(150))
   clerkId!: string;
 
+  //for chat
+  @Column({
+    type: DataType.ARRAY(DataType.JSON),
+    allowNull: false,
+    defaultValue: [],
+  })
+  chatRequests!: { senderId: string; senderName: string; isAnonymous: boolean }[];
+  
+
   @CreatedAt
   @Column({
     type: DataType.DATE,
