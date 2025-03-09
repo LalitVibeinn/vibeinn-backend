@@ -497,7 +497,7 @@ export const rejectFollowRequest = async (request: MyRequest, response: Response
 
 
 
-
+//r
 
 
 
@@ -769,6 +769,7 @@ export const getUserDetailsByIdentifier = async (req: Request, res: Response) =>
       following: user.following,
       followers: user.followers,
       profile: user.profile,
+      vibescore: user.vibeScore,
       personality: user.personality_type,
       isAnonymous: user.isAnonymous,
       anonymousName: user.anonymousName,
