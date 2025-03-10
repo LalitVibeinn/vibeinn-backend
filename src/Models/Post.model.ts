@@ -118,6 +118,7 @@
 //   updatedAt!: Date;
 // }
 
+//Models/post.model.ts
 import {
   Table,
   Column,
