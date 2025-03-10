@@ -1191,3 +1191,53 @@ export const createChat = async (req: Request, res: Response) => {
     }
   };
   
+
+  export const getUsersFromChat = async (req: MyRequest, res: Response) => {
+    try {
+      console.log("🔹 Incoming Request for Chat Users:", req.params);
+  
+      // ✅ Extract Chat ID from URL Parameters
+      const { chatId } = req.params;
+      if (!chatId) {
+        return res.status(400).json({ message: "Chat ID is required" });
+      }
+  
+      // ✅ Check if chat ID is valid for MongoDB
+      if (!mongoose.Types.ObjectId.isValid(chatId)) {
+        return res.status(400).json({ message: "Invalid Chat ID" });
+      }
+  
+      // ✅ Fetch Chat Details
+      const chat = await Chat.findById(chatId);
+      if (!chat) {
+        return res.status(404).json({ message: "Chat not found" });
+      }
+  
+      console.log("✅ Chat Found:", chat);
+  
+      // ✅ Extract Participants' User IDs
+      const userIds = chat.participants.map((user) => user.userId);
+  
+      // ✅ Fetch User Details from Postgres (Including Username)
+      const users = await User.findAll({
+        where: { userId: userIds },
+        attributes: ["userId", "username", "fullname", "anonymousName", "profile"], // Fetch username
+      });
+  
+      // ✅ Map Users to Return Data
+      const participants = users.map((user) => ({
+        userId: user.userId,
+        username: user.username, // ✅ Include username
+        fullName: user.fullname,
+        anonymousName: user.anonymousName || null,
+        profilePic: user.profile,
+      }));
+  
+      return res.status(200).json({ chatId, participants });
+    } catch (error) {
+      console.error("❌ Error fetching users from chat:", error);
+      return res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+  };
+  
+  
