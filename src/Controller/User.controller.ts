@@ -1,7 +1,7 @@
 //Controller/User.controller.ts
 
 import { Request, Response } from "express";
-import { clerkClient } from "@clerk/clerk-sdk-node";
+import {clerkClient} from "@clerk/clerk-sdk-node";
 import User from "../Models/User.model";
 import jwt from "jsonwebtoken";
 import { MyRequest } from "@/Interfaces/Request.interface";
@@ -13,7 +13,6 @@ import { updateVibeScore } from "../Controller/Post.controller"; // ✅ Import u
 
 const SECRET_KEY = process.env.CLERK_SECRET_KEY as string;
 
-////
 
 
 // ✅ Follow a User
@@ -562,102 +561,6 @@ export const toggleAnonymity = async (request: MyRequest, response: Response) =>
 
 
 
-// export const getUserDetailsByIdentifier = async (req: Request, res: Response) => {
-//   try {
-//     const { identifier } = req.params;
-
-//     if (!identifier) {
-//       return res.status(400).json({ message: "Identifier is required" });
-//     }
-
-//     const user = await User.findOne({ where: { username: identifier } });
-
-//     if (!user) {
-//       return res.status(404).json({ message: "User not found" });
-//     }
-
-//     // ✅ Check if the requesting user is blocked
-//     const authHeader = req.headers.authorization;
-//     if (authHeader && authHeader.startsWith("Bearer ")) {
-//       const token = authHeader.split(" ")[1];
-//       let decodedToken;
-//       try {
-//         decodedToken = jwt.verify(token, SECRET_KEY);
-//         const requestingUser = await User.findOne({ where: { username: decodedToken.username } });
-
-//         if (requestingUser?.blockedUsers.includes(user.username)) {
-//           return res.status(403).json({ message: "You have been blocked by this user" });
-//         }
-//       } catch (err) {
-//         console.error("❌ Error verifying JWT:", err);
-//       }
-//     }
-
-//     return res.status(200).json({
-//       userId: user.userId,
-//       username: user.username,
-//       fullname: user.fullname,
-//       profile: user.profile,
-//       isAnonymous: user.isAnonymous,
-//     });
-//   } catch (error) {
-//     console.error("❌ Error fetching user details:", error);
-//     return res.status(500).json({ message: "Internal server error", error: error.message });
-//   }
-// };
-
-
-
-// export const savePersonalityType = async (req: Request, res: Response) => {
-//   try {
-//     const authHeader = req.headers.authorization;
-//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-//       return res.status(401).json({ message: "Missing or invalid token" });
-//     }
-
-//     const token = authHeader.split(" ")[1];
-//     let decodedToken;
-//     try {
-//       decodedToken = jwt.verify(token, SECRET_KEY);
-//     } catch (err) {
-//       return res.status(401).json({ message: "Invalid or expired token" });
-//     }
-
-//     const username = decodedToken.username;
-//     if (!username) {
-//       return res.status(401).json({ message: "Unauthorized: No username found in JWT" });
-//     }
-
-//     const { answers } = req.body; // ✅ Expecting an array of selected answers
-
-//     if (!Array.isArray(answers) || answers.length !== 3) {
-//       return res.status(400).json({ message: "Exactly 3 answers are required" });
-//     }
-
-//     // ✅ Fetch User
-//     const user = await User.findOne({ where: { username } });
-//     if (!user) {
-//       return res.status(404).json({ message: "User not found" });
-//     }
-
-//     // ✅ Save answers
-//     user.personality_type = answers;
-
-//     // ✅ Set hasAnsweredPersonality based on answers
-//     user.hasAnsweredPersonality = answers.length > 0 ? true : false;
-//     await user.save();
-
-//     return res.status(200).json({
-//       message: "Personality type saved successfully",
-//       personality_type: user.personality_type,
-//       hasAnsweredPersonality: user.hasAnsweredPersonality // ✅ Include in response
-//     });
-//   } catch (error) {
-//     console.error("❌ Error saving personality type:", error);
-//     return res.status(500).json({ message: "Internal server error", error: error.message });
-//   }
-// };
-
 export const getUserDetailsByIdentifier = async (req: Request, res: Response) => {
   try {
     const { identifier } = req.params; // Accepts `userId`, `clerkId`, or `username`
@@ -709,89 +612,8 @@ export const getUserDetailsByIdentifier = async (req: Request, res: Response) =>
 
 
 
-// export const savePersonalityType = async (req: Request, res: Response) => {
-//   try {
-//     // ✅ Extract JWT Token
-//     const authHeader = req.headers.authorization;
-//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-//       return res.status(401).json({ message: "Missing or invalid token" });
-//     }
 
-//     const token = authHeader.split(" ")[1];
-//     let decodedToken;
-//     try {
-//       decodedToken = jwt.verify(token, SECRET_KEY);
-//     } catch (err) {
-//       return res.status(401).json({ message: "Invalid or expired token" });
-//     }
 
-//     const username = decodedToken.username;
-//     if (!username) {
-//       return res.status(401).json({ message: "Unauthorized: No username found in JWT" });
-//     }
-
-//     const { answers } = req.body; // ✅ Expecting an array of selected answers
-
-//     if (!Array.isArray(answers) || answers.length !== 3) {
-//       return res.status(400).json({ message: "Exactly 3 answers are required" });
-//     }
-
-//     // ✅ Fetch User
-//     const user = await User.findOne({ where: { username } });
-//     if (!user) {
-//       return res.status(404).json({ message: "User not found" });
-//     }
-
-//     // ✅ Check if user already answered personality questions
-//     const alreadyAnswered = user.hasAnsweredPersonality;
-
-//     // ✅ Save answers
-//     user.personality_type = answers;
-//     user.hasAnsweredPersonality = true; // ✅ Mark as answered
-//     await user.save();
-
-//     // ✅ Award 5 VibeScore **ONLY IF** it's the first time they answer
-//     if (!alreadyAnswered) {
-//       console.log(`🎉 ${username} completed personality questions. Awarding 5 VibeScore!`);
-      
-//       // ✅ Deduct from dailyVibePoints
-//       const pointsToAward = 5;
-//       const todayDate = new Date().toISOString().split("T")[0]; // Format: YYYY-MM-DD
-
-//       // ✅ Initialize dailyVibePoints if empty
-//       if (!user.dailyVibePoints) {
-//         user.dailyVibePoints = {};
-//       }
-
-//       // ✅ Initialize today's points if not present
-//       if (!user.dailyVibePoints[todayDate]) {
-//         user.dailyVibePoints[todayDate] = 0;
-//       }
-
-//       // ✅ Check if the user has remaining daily limit
-//       const dailyLimit = 50; // ✅ Set daily limit to 50
-//       if (user.dailyVibePoints[todayDate] + pointsToAward > dailyLimit) {
-//         return res.status(400).json({ message: "Daily VibeScore limit reached. Try again tomorrow!" });
-//       }
-
-//       // ✅ Update VibeScore and deduct from dailyVibePoints
-//       user.vibeScore += pointsToAward;
-//       user.dailyVibePoints[todayDate] += pointsToAward;
-//       await user.save();
-
-//       console.log(`📢 VibeScore updated for ${username}: +${pointsToAward} points`);
-//     }
-
-//     return res.status(200).json({
-//       message: "Personality type saved successfully",
-//       personality_type: user.personality_type,
-//       hasAnsweredPersonality: user.hasAnsweredPersonality,
-//     });
-//   } catch (error) {
-//     console.error("❌ Error saving personality type:", error);
-//     return res.status(500).json({ message: "Internal server error", error: error.message });
-//   }
-// };
 export const savePersonalityType = async (req: Request, res: Response) => {
   try {
     // ✅ Extract JWT Token
