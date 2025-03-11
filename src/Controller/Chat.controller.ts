@@ -83,28 +83,114 @@ export const createChat = async (req: Request, res: Response) => {
   };
   
  
+  // export const sendMessage = async (req: MyRequest, res: Response) => {
+  //   try {
+  //     const authHeader = req.headers.authorization;
+  //     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  //       return res.status(401).json({ message: "Missing or invalid token" });
+  //     }
+  
+  //     const token = authHeader.split(" ")[1];
+  //     let decodedToken;
+  //     try {
+  //       decodedToken = jwt.verify(token, SECRET_KEY);
+  //     } catch (err) {
+  //       return res.status(401).json({ message: "Invalid or expired token" });
+  //     }
+  
+  //     const { userId } = decodedToken;
+  //     const { chatId, text } = req.body;
+  
+  //     if (!chatId || !text) {
+  //       return res.status(400).json({ message: "Chat ID and message text are required" });
+  //     }
+  
+  //     const user = await User.findOne({ where: { userId } });
+  
+  //     if (!user) {
+  //       return res.status(404).json({ message: "User not found" });
+  //     }
+  
+  //     // ✅ Prevent sending messages in blocked chats
+  //     if (user.blockedChats.includes(chatId)) {
+  //       return res.status(403).json({ message: "You have blocked this chat. Unblock to send messages." });
+  //     }
+  
+  //     const message1 = await Message.create({
+  //       chatId,
+  //       sender: { userId, fullName: user.username, profilePic: user.profile },
+  //       text,
+  //       timestamp: new Date(),
+  //       readBy: [],
+  //     });
+  
+  //     return res.status(201).json({ message: "Message sent", message1 });
+  //   } catch (error) {
+  //     console.error("❌ Error sending message:", error);
+  //     return res.status(500).json({ message: "Internal server error", error: error.message });
+  //   }
+  // };
+  
+
+  // export const sendMessage = async (req: MyRequest, res: Response) => {
+  //   try {
+  //     // ✅ Use the cached user token from `authenticateUser`
+  //     const { userId, username, fullname } = req.token;
+  //     const { chatId, text } = req.body;
+  
+  //     if (!chatId || !text) {
+  //       return res.status(400).json({ message: "Chat ID and message text are required" });
+  //     }
+  
+  //     // ✅ Fetch user from cache instead of querying the database
+  //     let user = await User.findOne({ where: { userId } });
+  
+  //     if (!user) {
+  //       return res.status(404).json({ message: "User not found" });
+  //     }
+  
+  //     // ✅ Prevent sending messages in blocked chats
+  //     if (user.blockedChats?.includes(chatId)) {
+  //       return res.status(403).json({ message: "You have blocked this chat. Unblock to send messages." });
+  //     }
+  
+  //     // ✅ Send message with minimal delay
+  //     const message = await Message.create({
+  //       chatId,
+  //       sender: { userId, fullName: username, profilePic: user.profile },
+  //       text,
+  //       timestamp: new Date(),
+  //       readBy: [],
+  //     });
+  
+  //     // ✅ Emit real-time event to notify other users in the chat (if using WebSockets)
+  //     if (req.io) {
+  //       req.io.to(chatId).emit("newMessage", message);
+  //     }
+  
+  //     return res.status(201).json({ message: "Message sent", data: message });
+  //   } catch (error) {
+  //     console.error("❌ Error sending message:", error);
+  //     return res.status(500).json({ message: "Internal server error", error: error.message });
+  //   }
+  // };
+  
+
   export const sendMessage = async (req: MyRequest, res: Response) => {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({ message: "Missing or invalid token" });
+      // ✅ Ensure token exists (comes from `authenticateUser` middleware)
+      if (!req.token) {
+        return res.status(401).json({ message: "Unauthorized request" });
       }
   
-      const token = authHeader.split(" ")[1];
-      let decodedToken;
-      try {
-        decodedToken = jwt.verify(token, SECRET_KEY);
-      } catch (err) {
-        return res.status(401).json({ message: "Invalid or expired token" });
-      }
-  
-      const { userId } = decodedToken;
+      const { userId, username } = req.token;
       const { chatId, text } = req.body;
   
       if (!chatId || !text) {
         return res.status(400).json({ message: "Chat ID and message text are required" });
       }
   
+      // ✅ Fetch user from database
       const user = await User.findOne({ where: { userId } });
   
       if (!user) {
@@ -112,19 +198,27 @@ export const createChat = async (req: Request, res: Response) => {
       }
   
       // ✅ Prevent sending messages in blocked chats
-      if (user.blockedChats.includes(chatId)) {
+      if (user.blockedChats?.includes(chatId)) {
         return res.status(403).json({ message: "You have blocked this chat. Unblock to send messages." });
       }
   
-      const message1 = await Message.create({
+      // ✅ Create and store the message
+      const message = await Message.create({
         chatId,
-        sender: { userId, fullName: user.username, profilePic: user.profile },
+        sender: { userId, fullName: username, profilePic: user.profile || "https://default-profile-image.com/default.png" },
         text,
         timestamp: new Date(),
         readBy: [],
       });
   
-      return res.status(201).json({ message: "Message sent", message1 });
+      // ✅ Emit message via WebSockets for real-time update
+      if (req.io) {
+        req.io.to(chatId).emit("newMessage", message);
+      } else {
+        console.warn("⚠️ Warning: WebSocket (req.io) is not initialized.");
+      }
+  
+      return res.status(201).json({ message: "Message sent", data: message });
     } catch (error) {
       console.error("❌ Error sending message:", error);
       return res.status(500).json({ message: "Internal server error", error: error.message });
@@ -154,72 +248,6 @@ export const createChat = async (req: Request, res: Response) => {
 
 
 
- 
-  // export const sendChatRequest = async (req: MyRequest, res: Response) => {
-  //   try {
-  //     console.log("🔹 Incoming Chat Request:", req.body); // ✅ Log Request Body
-  
-  //     // ✅ Extract Token
-  //     const authHeader = req.headers.authorization;
-  //     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-  //       return res.status(401).json({ message: "Missing or invalid token" });
-  //     }
-  
-  //     const token = authHeader.split(" ")[1];
-  //     let decodedToken;
-  //     try {
-  //       decodedToken = jwt.verify(token, SECRET_KEY);
-  //       console.log("🔹 Decoded Token:", decodedToken);
-  //     } catch (err) {
-  //       return res.status(401).json({ message: "Invalid or expired token" });
-  //     }
-  
-  //     const { userId, username, anonymousName, isAnonymous, anonymousProfile } = decodedToken;
-  //     const { recipientId } = req.body;
-  
-  //     if (!recipientId) {
-  //       return res.status(400).json({ message: "Recipient ID is required" });
-  //     }
-  
-  //     // ✅ Fetch Recipient User
-  //     const recipient = await User.findOne({ where: { userId: recipientId } });
-  //     if (!recipient) {
-  //       return res.status(404).json({ message: "Recipient not found" });
-  //     }
-  
-  //     console.log("✅ Recipient Found:", recipient.username);
-  
-  //     // ✅ Check if a request already exists
-  //     if (recipient.chatRequests.some((req) => req.senderId === userId)) {
-  //       console.log("❌ Chat Request Already Exists");
-  //       return res.status(400).json({ message: "Chat request already sent" });
-  //     }
-  
-  //     // ✅ Generate Greeting Message
-  //     const greetingMessage = `Hi ${recipient.username}, let's connect and chat!`;
-  
-  //     // ✅ Add New Chat Request with Greeting Message
-  //     recipient.chatRequests.push({
-  //       senderId: userId,
-  //       senderName: isAnonymous ? anonymousName : username,
-  //       isAnonymous: isAnonymous,
-  //       anonymousProfile: isAnonymous ? anonymousProfile : null,
-  //       greetingMessage: greetingMessage, // ✅ Always include the greeting message
-  //     });
-  
-  //     // 🔥 Force Sequelize to detect changes
-  //     recipient.changed("chatRequests", true);
-  //     await recipient.save();
-  
-  //     console.log("✅ Chat Request Sent Successfully with Greeting Message");
-  
-  //     return res.status(200).json({ message: "Chat request sent successfully with greeting message" });
-  //   } catch (error) {
-  //     console.error("❌ Error sending chat request:", error);
-  //     return res.status(500).json({ message: "Internal server error", error: error.message });
-  //   }
-  // };
-  
 
   export const sendChatRequest = async (req: MyRequest, res: Response) => {
     try {
@@ -414,73 +442,7 @@ export const createChat = async (req: Request, res: Response) => {
     }
 };
 
-  // export const acceptChatRequest = async (req: MyRequest, res: Response) => {
-  //   try {
-  //     const authHeader = req.headers.authorization;
-  //     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-  //       return res.status(401).json({ message: "Missing or invalid token" });
-  //     }
-  
-  //     const token = authHeader.split(" ")[1];
-  //     let decodedToken;
-  //     try {
-  //       decodedToken = jwt.verify(token, SECRET_KEY);
-  //     } catch (err) {
-  //       return res.status(401).json({ message: "Invalid or expired token" });
-  //     }
-  
-  //     const { userId, username } = decodedToken;
-  //     const { senderId } = req.body;
-  
-  //     if (!senderId) {
-  //       return res.status(400).json({ message: "Sender ID is required" });
-  //     }
-  
-  //     const recipient = await User.findOne({ where: { userId } });
-  //     const sender = await User.findOne({ where: { userId: senderId } });
-  
-  //     if (!recipient || !sender) {
-  //       return res.status(404).json({ message: "User not found" });
-  //     }
-  
-  //     // ✅ Remove request from recipient's list
-  //     recipient.chatRequests = recipient.chatRequests.filter((req) => req.senderId !== senderId);
-  //     await recipient.save();
-  
-  //     // ✅ Create or Update Chat
-  //     let chat = await Chat.findOne({
-  //       "participants.userId": { $all: [userId, senderId] }
-  //     });
-  
-  //     if (!chat) {
-  //       chat = await Chat.create({
-  //         type: "private",
-  //         participants: [
-  //           {
-  //             userId: sender.userId,
-  //             fullName: sender.username,
-  //             profilePic: sender.profile,
-  //           },
-  //           {
-  //             userId: recipient.userId,
-  //             fullName: recipient.username,
-  //             profilePic: recipient.profile,
-  //           },
-  //         ],
-  //         isAccepted: true,
-  //       });
-  //     } else {
-  //       await Chat.updateOne({ _id: chat._id }, { $set: { isAccepted: true } });
-  //     }
-  
-  //     console.log("✅ Chat request accepted successfully:", chat);
-  //     return res.status(201).json({ message: "Chat request accepted", chat });
-  //   } catch (error) {
-  //     console.error("❌ Error accepting chat request:", error);
-  //     return res.status(500).json({ message: "Internal server error", error: error.message });
-  //   }
-  // };
-  
+
   export const acceptChatRequest = async (req: MyRequest, res: Response) => {
     try {
       // ✅ Extract Token
@@ -687,133 +649,7 @@ export const createChat = async (req: Request, res: Response) => {
 
   
 
-  // export const sharePost = async (req: MyRequest, res: Response) => {
-  //   try {
-  //     console.log("🔹 Incoming Share Post Request:", req.body);
-  
-  //     // ✅ Extract Authorization Token
-  //     const authHeader = req.headers.authorization;
-  //     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-  //       return res.status(401).json({ message: "Missing or invalid token" });
-  //     }
-  
-  //     const token = authHeader.split(" ")[1];
-  //     let decodedToken;
-  //     try {
-  //       decodedToken = jwt.verify(token, SECRET_KEY);
-  //       console.log("🔹 Decoded Token:", decodedToken);
-  //     } catch (err) {
-  //       return res.status(401).json({ message: "Invalid or expired token" });
-  //     }
-  
-  //     const { userId, username, anonymousName, isAnonymous, anonymousProfile } = decodedToken;
-  //     const { recipientId, postId } = req.body;
-  
-  //     if (!recipientId || !postId) {
-  //       return res.status(400).json({ message: "Recipient ID and Post ID are required" });
-  //     }
-  
-  //     // ✅ Fetch Post Details
-  //     const post = await Post.findByPk(postId);
-  //     if (!post) {
-  //       return res.status(404).json({ message: "Post not found" });
-  //     }
-  
-  //     // ✅ Fetch Recipient User
-  //     const recipient = await User.findOne({ where: { userId: recipientId } });
-  //     if (!recipient) {
-  //       return res.status(404).json({ message: "Recipient not found" });
-  //     }
-  
-  //     console.log("✅ Recipient Found:", recipient.username);
-  
-  //     // ✅ Ensure recipient.following is an array
-  //     const recipientFollowing = Array.isArray(recipient.following) ? recipient.following : [];
-  
-  //     // ✅ Check if the sender is a friend
-  //     const isFriend = recipientFollowing.includes(username);
-  
-  //     if (isFriend) {
-  //       console.log("✅ User is a friend, sending post directly in chat...");
-  
-  //       // ✅ Check if a chat already exists
-  //       let chat = await Chat.findOne({
-  //         "participants.userId": { $all: [userId, recipientId] }
-  //       });
-  
-  //       if (!chat) {
-  //         console.log("❌ No chat found, creating a new one...");
-  //         chat = await Chat.create({
-  //           type: "private",
-  //           participants: [
-  //             {
-  //               userId: userId,
-  //               fullName: username,
-  //               anonymousName: anonymousName || null,
-  //               profilePic: anonymousProfile || null,
-  //             },
-  //             {
-  //               userId: recipient.userId,
-  //               fullName: recipient.username,
-  //               anonymousName: recipient.anonymousName || null,
-  //               profilePic: recipient.profile || null,
-  //             },
-  //           ],
-  //           isAccepted: true, // ✅ Since they are friends
-  //         });
-  //       }
-  
-  //       // ✅ Send post as a message in the chat
-  //       const message1 = await Message.create({
-  //         chatId: chat._id,
-  //         sender: {
-  //           userId,
-  //           fullName: username,
-  //           profilePic: anonymousProfile || null,
-  //         },
-  //         text: `📢 Shared Post: ${post.caption}`,
-  //         media: post.media.length > 0 ? post.media[0] : null,
-  //         timestamp: new Date(),
-  //         readBy: [],
-  //       });
-  
-  //       return res.status(200).json({ message: "Post shared successfully via chat", chatId: chat._id, message1 });
-  //     } else {
-  //       console.log("❌ User is NOT a friend, sending with chat request...");
-  
-  //       // ✅ Check if chat request already exists
-  //       if (recipient.chatRequests.some((req) => req.senderId === userId)) {
-  //         console.log("❌ Chat Request Already Exists");
-  //         return res.status(400).json({ message: "Chat request already sent with a post" });
-  //       }
-  
-  //       // ✅ Add New Chat Request with Shared Post
-  //       recipient.chatRequests.push({
-  //         senderId: userId,
-  //         senderName: isAnonymous ? anonymousName : username,
-  //         isAnonymous: isAnonymous,
-  //         anonymousProfile: isAnonymous ? anonymousProfile : null,
-  //         sharedPost: {
-  //           postId: post.id,
-  //           caption: post.caption,
-  //           media: post.media,
-  //         },
-  //       });
-  
-  //       // 🔥 Force Sequelize to detect changes
-  //       recipient.changed("chatRequests", true);
-  //       await recipient.save();
-  
-  //       console.log("✅ Chat Request Sent Successfully with Shared Post");
-  
-  //       return res.status(200).json({ message: "Post shared along with a chat request" });
-  //     }
-  //   } catch (error) {
-  //     console.error("❌ Error sharing post:", error);
-  //     return res.status(500).json({ message: "Internal server error", error: error.message });
-  //   }
-  // };
-  
+
   export const sharePost = async (req: MyRequest, res: Response) => {
     try {
       console.log("🔹 Incoming Share Post Request:", req.body);

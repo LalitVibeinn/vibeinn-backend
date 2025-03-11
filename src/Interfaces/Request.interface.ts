@@ -3,6 +3,8 @@
 import { Request } from "express";
 import { AuthObject } from "@clerk/clerk-sdk-node";
 import { JwtPayload } from "jsonwebtoken";
+import { Server as SocketIOServer } from "socket.io";
+
 
 export interface MyRequest extends Request {
   auth?: AuthObject; // Clerk's authentication object
@@ -14,7 +16,8 @@ export interface MyRequest extends Request {
     fullname?: string; // ✅ Allow fullname as well
     email?: string;
   };
-}
+  io?: SocketIOServer; // ✅ Add Socket.io instance
 
+}
 
 
