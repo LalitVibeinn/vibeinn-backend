@@ -15,7 +15,8 @@ import {followUser,
    searchUsers,
    blockUser,
    unblockUser,
-   getFollowersDetails
+   getFollowersDetails,
+   getPendingFollowRequests
   } from "../Controller/User.controller";
 import { authenticate } from "../Config/clerksetup";
 import { syncClerkUsers } from "../Controller/User.controller";
@@ -109,6 +110,12 @@ router.get("/api/followers", authenticate, (request, response) => {
 });
 
 
-export default router;
+router.get("/pending-requests", authenticate, (request, response) => {
+  getPendingFollowRequests(request, response);
+});
 
+
+
+export default router;
+  
 

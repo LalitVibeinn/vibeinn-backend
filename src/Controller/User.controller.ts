@@ -1476,3 +1476,81 @@ export const getFollowersDetails = async (request: MyRequest, response: Response
   }
 };
 
+export const getPendingFollowRequests = async (request: MyRequest, response: Response) => {
+  try {
+    // ✅ Extract JWT Token
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return response.status(401).json({ message: "Missing or invalid token" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    let decodedToken;
+    try {
+      decodedToken = jwt.verify(token, SECRET_KEY);
+    } catch (err) {
+      return response.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    // ✅ Extract user ID from token
+    const userId = decodedToken.userId;
+    console.log("✅ Extracted userId from token:", userId);
+
+    if (!userId) {
+      return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
+    }
+
+    // ✅ Fetch the current user
+    const currentUser = await User.findOne({ where: { userId } });
+
+    if (!currentUser) {
+      console.error("❌ User not found in the database for userId:", userId);
+      return response.status(404).json({ message: "User not found" });
+    }
+
+    // ✅ Get the list of pending request user IDs
+    const pendingRequestIds = currentUser.pending_requests || [];
+    console.log("✅ Pending Requests:", pendingRequestIds);
+
+    if (pendingRequestIds.length === 0) {
+      return response.status(200).json({ message: "No pending follow requests", pendingRequests: [] });
+    }
+
+    // ✅ Fetch details of users who sent follow requests
+    const pendingUsers = await User.findAll({
+      where: { userId: pendingRequestIds },
+      attributes: [
+        "userId",
+        "username",
+        "fullname",
+        "profile",
+        "bio",
+        "followers_count",
+        "following",
+        "anonymousName",
+        "isAnonymous"
+      ],
+    });
+
+    console.log("✅ Pending Users Found:", pendingUsers.length);
+
+    // ✅ Format response to include anonymous names when applicable
+    const formattedPendingRequests = pendingUsers.map(user => ({
+      userId: user.userId,
+      username: user.isAnonymous ? null : user.username, // Hide username if anonymous
+      fullname: user.isAnonymous ? user.anonymousName : user.fullname, // Show anonymous name if applicable
+      profile: user.profile,
+      bio: user.bio,
+      followers_count: user.followers_count,
+      following: user.following,
+      isAnonymous: user.isAnonymous
+    }));
+
+    return response.status(200).json({ message: "Pending follow requests fetched successfully", pendingRequests: formattedPendingRequests });
+  } catch (error) {
+    console.error("❌ Error fetching pending follow requests:", error);
+    return response.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
+
