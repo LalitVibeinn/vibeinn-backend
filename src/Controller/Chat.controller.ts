@@ -176,14 +176,79 @@ export const createChat = async (req: Request, res: Response) => {
   // };
   
 
+  // export const sendMessage = async (req: MyRequest, res: Response) => {
+  //   try {
+  //     // ✅ Ensure token exists (comes from `authenticateUser` middleware)
+  //     if (!req.token) {
+  //       return res.status(401).json({ message: "Unauthorized request" });
+  //     }
+  
+  //     const { userId, username } = req.token;
+  //     const { chatId, text } = req.body;
+  
+  //     if (!chatId || !text) {
+  //       return res.status(400).json({ message: "Chat ID and message text are required" });
+  //     }
+  
+  //     // ✅ Fetch user from database
+  //     const user = await User.findOne({ where: { userId } });
+  
+  //     if (!user) {
+  //       return res.status(404).json({ message: "User not found" });
+  //     }
+  
+  //     // ✅ Prevent sending messages in blocked chats
+  //     if (user.blockedChats?.includes(chatId)) {
+  //       return res.status(403).json({ message: "You have blocked this chat. Unblock to send messages." });
+  //     }
+  
+  //     // ✅ Create and store the message
+  //     const message = await Message.create({
+  //       chatId,
+  //       sender: { userId, fullName: username, profilePic: user.profile || "https://default-profile-image.com/default.png" },
+  //       text,
+  //       timestamp: new Date(),
+  //       readBy: [],
+  //     });
+  
+  //     // ✅ Emit message via WebSockets for real-time update
+  //     if (req.io) {
+  //       req.io.to(chatId).emit("newMessage", message);
+  //     } else {
+  //       console.warn("⚠️ Warning: WebSocket (req.io) is not initialized.");
+  //     }
+  
+  //     return res.status(201).json({ message: "Message sent", data: message });
+  //   } catch (error) {
+  //     console.error("❌ Error sending message:", error);
+  //     return res.status(500).json({ message: "Internal server error", error: error.message });
+  //   }
+  // };
+  
+
   export const sendMessage = async (req: MyRequest, res: Response) => {
     try {
       // ✅ Ensure token exists (comes from `authenticateUser` middleware)
+      let decodedToken;
       if (!req.token) {
-        return res.status(401).json({ message: "Unauthorized request" });
+        // If `req.token` is not available, extract it manually
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          return res.status(401).json({ message: "Missing or invalid token" });
+        }
+  
+        const token = authHeader.split(" ")[1];
+  
+        try {
+          decodedToken = jwt.verify(token, SECRET_KEY) as jwt.JwtPayload;
+        } catch (err) {
+          return res.status(401).json({ message: "Invalid or expired token" });
+        }
+      } else {
+        decodedToken = req.token;
       }
   
-      const { userId, username } = req.token;
+      const { userId, username } = decodedToken;
       const { chatId, text } = req.body;
   
       if (!chatId || !text) {
