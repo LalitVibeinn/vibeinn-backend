@@ -1537,10 +1537,11 @@ export const getPendingFollowRequests = async (request: MyRequest, response: Res
     // ✅ Format response to include anonymous names when applicable
     const formattedPendingRequests = pendingUsers.map(user => ({
       userId: user.userId,
-      username: user.isAnonymous ? null : user.username, // Hide username if anonymous
-      fullname: user.isAnonymous ? user.anonymousName : user.fullname, // Show anonymous name if applicable
+      username:  user.username, 
+      fullname:  user.fullname, 
       profile: user.profile,
       bio: user.bio,
+      anonymousName: user.anonymousName,
       followers_count: user.followers_count,
       following: user.following,
       isAnonymous: user.isAnonymous
