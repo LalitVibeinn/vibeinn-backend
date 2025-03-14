@@ -16,9 +16,75 @@ const SECRET_KEY = process.env.CLERK_SECRET_KEY as string;
 
 
 // ✅ Follow a User
+// export const followUser = async (request: MyRequest, response: Response) => {
+//   try {
+//     // ✅ Extract token from Authorization header
+//     const authHeader = request.headers.authorization;
+//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//       return response.status(401).json({ message: "Missing or invalid token" });
+//     }
+
+//     const token = authHeader.split(" ")[1];
+
+//     // ✅ Decode JWT
+//     let decodedToken;
+//     try {
+//       decodedToken = jwt.verify(token, SECRET_KEY);
+//     } catch (err) {
+//       return response.status(401).json({ message: "Invalid or expired token" });
+//     }
+
+//     const username = (decodedToken as any).username;
+//     if (!username) {
+//       return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//     }
+
+//     console.log("✅ Username Found:", username);
+
+//     const { usernameToFollow } = request.body;
+
+//     if (!usernameToFollow) {
+//       return response.status(400).json({ msg: "Username to follow is required" });
+//     }
+
+//     if (username === usernameToFollow) {
+//       return response.status(400).json({ msg: "You cannot follow yourself" });
+//     }
+
+//     // ✅ Fetch Users
+//     const targetUser = await User.findByPk(usernameToFollow);
+//     const currentUser = await User.findByPk(username);
+
+//     if (!targetUser || !currentUser) {
+//       return response.status(404).json({ msg: "User not found" });
+//     }
+
+//     targetUser.pending_requests = targetUser.pending_requests || [];
+//     currentUser.following = currentUser.following || [];
+
+//     if (currentUser.following.includes(usernameToFollow)) {
+//       return response.status(400).json({ msg: "You are already following this user" });
+//     }
+
+//     if (targetUser.pending_requests.includes(username)) {
+//       return response.status(400).json({ msg: "Follow request already sent" });
+//     }
+
+//     // ✅ Add follow request
+//     targetUser.pending_requests.push(username);
+//     targetUser.changed("pending_requests", true);
+//     await targetUser.save();
+
+//     return response.status(200).json({ msg: `Follow request sent to ${usernameToFollow}` });
+//   } catch (error) {
+//     console.error("❌ Error sending follow request:", error);
+//     return response.status(500).json({ msg: "Internal server error", error: error.message });
+//   }
+// };
+
 export const followUser = async (request: MyRequest, response: Response) => {
   try {
-    // ✅ Extract token from Authorization header
+    // ✅ Extract JWT Token
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return response.status(401).json({ message: "Missing or invalid token" });
@@ -34,48 +100,54 @@ export const followUser = async (request: MyRequest, response: Response) => {
       return response.status(401).json({ message: "Invalid or expired token" });
     }
 
-    const username = (decodedToken as any).username;
-    if (!username) {
-      return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+    const userId = (decodedToken as any).userId; // ✅ Use `userId`
+    if (!userId) {
+      return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
     }
 
-    console.log("✅ Username Found:", username);
+    console.log("✅ User ID Found:", userId);
 
-    const { usernameToFollow } = request.body;
+    const { userIdToFollow } = request.body; // ✅ Expecting `userId` instead of `username`
 
-    if (!usernameToFollow) {
-      return response.status(400).json({ msg: "Username to follow is required" });
+    if (!userIdToFollow) {
+      return response.status(400).json({ msg: "User ID to follow is required" });
     }
 
-    if (username === usernameToFollow) {
+    if (userId === userIdToFollow) {
       return response.status(400).json({ msg: "You cannot follow yourself" });
     }
 
-    // ✅ Fetch Users
-    const targetUser = await User.findByPk(usernameToFollow);
-    const currentUser = await User.findByPk(username);
+    // ✅ Fetch Users using `findOne({ where: { userId } })`
+    const targetUser = await User.findOne({ where: { userId: userIdToFollow } });
+    const currentUser = await User.findOne({ where: { userId } });
 
-    if (!targetUser || !currentUser) {
-      return response.status(404).json({ msg: "User not found" });
+    if (!targetUser) {
+      console.error("❌ Target User Not Found:", userIdToFollow);
+      return response.status(404).json({ msg: "User to follow not found" });
+    }
+
+    if (!currentUser) {
+      console.error("❌ Current User Not Found:", userId);
+      return response.status(404).json({ msg: "Current user not found" });
     }
 
     targetUser.pending_requests = targetUser.pending_requests || [];
     currentUser.following = currentUser.following || [];
 
-    if (currentUser.following.includes(usernameToFollow)) {
+    if (currentUser.following.includes(userIdToFollow)) {
       return response.status(400).json({ msg: "You are already following this user" });
     }
 
-    if (targetUser.pending_requests.includes(username)) {
+    if (targetUser.pending_requests.includes(userId)) {
       return response.status(400).json({ msg: "Follow request already sent" });
     }
 
-    // ✅ Add follow request
-    targetUser.pending_requests.push(username);
+    // ✅ Add follow request (store `userId` instead of `username`)
+    targetUser.pending_requests.push(userId);
     targetUser.changed("pending_requests", true);
     await targetUser.save();
 
-    return response.status(200).json({ msg: `Follow request sent to ${usernameToFollow}` });
+    return response.status(200).json({ msg: `Follow request sent to user ${userIdToFollow}` });
   } catch (error) {
     console.error("❌ Error sending follow request:", error);
     return response.status(500).json({ msg: "Internal server error", error: error.message });
@@ -84,8 +156,78 @@ export const followUser = async (request: MyRequest, response: Response) => {
 
 
 
+// export const unfollowUser = async (request: MyRequest, response: Response) => {
+//   try {
+//     const authHeader = request.headers.authorization;
+//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//       return response.status(401).json({ message: "Missing or invalid token" });
+//     }
+
+//     const token = authHeader.split(" ")[1];
+//     let decodedToken;
+//     try {
+//       decodedToken = jwt.verify(token, SECRET_KEY);
+//     } catch (err) {
+//       return response.status(401).json({ message: "Invalid or expired token" });
+//     }
+
+//     const username = decodedToken.username;
+//     if (!username) {
+//       return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//     }
+
+//     const { usernameToUnfollow } = request.body;
+//     if (!usernameToUnfollow) {
+//       return response.status(400).json({ message: "Username to unfollow is required" });
+//     }
+
+//     if (username === usernameToUnfollow) {
+//       return response.status(400).json({ message: "You cannot unfollow yourself" });
+//     }
+
+//     // ✅ Fetch Users
+//     const currentUser = await User.findByPk(username);
+//     const targetUser = await User.findByPk(usernameToUnfollow);
+
+//     // ✅ Check if users exist
+//     if (!currentUser) {
+//       return response.status(404).json({ message: "Current user not found in database" });
+//     }
+
+//     if (!targetUser) {
+//       return response.status(404).json({ message: "User to unfollow not found in database" });
+//     }
+
+//     // ✅ Ensure `following` and `followers` arrays are initialized
+//     currentUser.following = currentUser.following || [];
+//     targetUser.followers = targetUser.followers || [];
+
+//     if (!currentUser.following.includes(usernameToUnfollow)) {
+//       return response.status(400).json({ message: "You are not following this user" });
+//     }
+
+//     // ✅ Remove from following & followers
+//     currentUser.following = currentUser.following.filter((u) => u !== usernameToUnfollow);
+//     currentUser.changed("following", true);
+//     await currentUser.save();
+
+//     targetUser.followers = targetUser.followers.filter((u) => u !== username);
+//     targetUser.followers_count = targetUser.followers.length; // ✅ Update followers count
+//     targetUser.changed("followers", true);
+//     await targetUser.save();
+
+//     return response.status(200).json({ message: `You have unfollowed ${usernameToUnfollow}` });
+//   } catch (error) {
+//     console.error("❌ Error unfollowing user:", error);
+//     return response.status(500).json({ message: "Internal server error", error: error.message });
+//   }
+// };
+
+//remove the user from the followers list 
+
 export const unfollowUser = async (request: MyRequest, response: Response) => {
   try {
+    // ✅ Extract JWT Token
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return response.status(401).json({ message: "Missing or invalid token" });
@@ -99,62 +241,181 @@ export const unfollowUser = async (request: MyRequest, response: Response) => {
       return response.status(401).json({ message: "Invalid or expired token" });
     }
 
-    const username = decodedToken.username;
-    if (!username) {
-      return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+    const userId = decodedToken.userId; // ✅ Use `userId`
+    if (!userId) {
+      return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
     }
 
-    const { usernameToUnfollow } = request.body;
-    if (!usernameToUnfollow) {
-      return response.status(400).json({ message: "Username to unfollow is required" });
+    const { userIdToUnfollow } = request.body;
+    if (!userIdToUnfollow) {
+      return response.status(400).json({ message: "User ID to unfollow is required" });
     }
 
-    if (username === usernameToUnfollow) {
+    if (userId === userIdToUnfollow) {
       return response.status(400).json({ message: "You cannot unfollow yourself" });
     }
 
     // ✅ Fetch Users
-    const currentUser = await User.findByPk(username);
-    const targetUser = await User.findByPk(usernameToUnfollow);
+    const currentUser = await User.findOne({ where: { userId } });
+    const targetUser = await User.findOne({ where: { userId: userIdToUnfollow } });
 
-    // ✅ Check if users exist
     if (!currentUser) {
-      return response.status(404).json({ message: "Current user not found in database" });
+      return response.status(404).json({ message: "Current user not found" });
     }
 
     if (!targetUser) {
-      return response.status(404).json({ message: "User to unfollow not found in database" });
+      return response.status(404).json({ message: "User to unfollow not found" });
     }
 
-    // ✅ Ensure `following` and `followers` arrays are initialized
     currentUser.following = currentUser.following || [];
     targetUser.followers = targetUser.followers || [];
 
-    if (!currentUser.following.includes(usernameToUnfollow)) {
+    if (!currentUser.following.includes(userIdToUnfollow)) {
       return response.status(400).json({ message: "You are not following this user" });
     }
 
     // ✅ Remove from following & followers
-    currentUser.following = currentUser.following.filter((u) => u !== usernameToUnfollow);
+    currentUser.following = currentUser.following.filter((id) => id !== userIdToUnfollow);
     currentUser.changed("following", true);
     await currentUser.save();
 
-    targetUser.followers = targetUser.followers.filter((u) => u !== username);
-    targetUser.followers_count = targetUser.followers.length; // ✅ Update followers count
+    targetUser.followers = targetUser.followers.filter((id) => id !== userId);
+    targetUser.followers_count = targetUser.followers.length;
     targetUser.changed("followers", true);
     await targetUser.save();
 
-    return response.status(200).json({ message: `You have unfollowed ${usernameToUnfollow}` });
+    return response.status(200).json({ message: `You have unfollowed user ${userIdToUnfollow}` });
   } catch (error) {
     console.error("❌ Error unfollowing user:", error);
     return response.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
 
-//remove the user from the followers list 
+
+
+// export const removeFollower = async (request: MyRequest, response: Response) => {
+//   try {
+//     // ✅ Extract JWT token
+//     const authHeader = request.headers.authorization;
+//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//       return response.status(401).json({ message: "Missing or invalid token" });
+//     }
+
+//     const token = authHeader.split(" ")[1];
+//     let decodedToken;
+//     try {
+//       decodedToken = jwt.verify(token, SECRET_KEY);
+//     } catch (err) {
+//       return response.status(401).json({ message: "Invalid or expired token" });
+//     }
+
+//     // ✅ Get username from token
+//     const username = decodedToken.username;
+//     if (!username) {
+//       return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//     }
+
+//     // ✅ Extract follower's username from request body
+//     const { usernameToRemove } = request.body;
+//     if (!usernameToRemove) {
+//       return response.status(400).json({ message: "Username to remove is required" });
+//     }
+
+//     if (username === usernameToRemove) {
+//       return response.status(400).json({ message: "You cannot remove yourself as a follower" });
+//     }
+
+//     // ✅ Fetch the user (current user) and the follower
+//     const currentUser = await User.findByPk(username);
+//     const followerUser = await User.findByPk(usernameToRemove);
+
+//     if (!currentUser) {
+//       return response.status(404).json({ message: "Current user not found" });
+//     }
+
+//     if (!followerUser) {
+//       return response.status(404).json({ message: "Follower user not found" });
+//     }
+
+//     // ✅ Ensure followers array is initialized
+//     currentUser.followers = currentUser.followers || [];
+
+//     if (!currentUser.followers.includes(usernameToRemove)) {
+//       return response.status(400).json({ message: "This user is not your follower" });
+//     }
+
+//     // ✅ Remove follower from followers list
+//     currentUser.followers = currentUser.followers.filter((follower) => follower !== usernameToRemove);
+//     currentUser.followers_count = currentUser.followers.length; // ✅ Update followers count
+//     await currentUser.save();
+
+//     return response.status(200).json({ message: `Removed ${usernameToRemove} from your followers` });
+
+//   } catch (error) {
+//     console.error("❌ Error removing follower:", error);
+//     return response.status(500).json({ message: "Internal server error", error: error.message });
+//   }
+// };
+
+// export const acceptFollowRequest = async (request: MyRequest, response: Response) => {
+//   try {
+//     const authHeader = request.headers.authorization;
+//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//       return response.status(401).json({ message: "Missing or invalid token" });
+//     }
+
+//     const token = authHeader.split(" ")[1];
+//     let decodedToken;
+//     try {
+//       decodedToken = jwt.verify(token, SECRET_KEY);
+//     } catch (err) {
+//       return response.status(401).json({ message: "Invalid or expired token" });
+//     }
+
+//     const username = decodedToken.username;
+//     if (!username) {
+//       return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//     }
+
+//     const { usernameToAccept } = request.body;
+//     if (!usernameToAccept) {
+//       return response.status(400).json({ msg: "Username to accept is required" });
+//     }
+
+//     await sequelize.transaction(async (t) => {
+//       const currentUser = await User.findByPk(username, { transaction: t });
+
+//       if (!currentUser.pending_requests.includes(usernameToAccept)) {
+//         return response.status(400).json({ msg: "No pending follow request from this user" });
+//       }
+
+//       // ✅ Remove from pending requests & add to followers
+//       currentUser.pending_requests = currentUser.pending_requests.filter((u) => u !== usernameToAccept);
+//       currentUser.followers = currentUser.followers || [];
+//       currentUser.followers.push(usernameToAccept);
+//       currentUser.followers_count = currentUser.followers.length; // ✅ Update followers count
+//       await currentUser.save({ transaction: t });
+
+//       // ✅ Update following list of the accepted user
+//       const userToAccept = await User.findByPk(usernameToAccept, { transaction: t });
+//       userToAccept.following = userToAccept.following || [];
+//       userToAccept.following.push(username);
+//       await userToAccept.save({ transaction: t });
+//     });
+
+//     return response.status(200).json({ msg: `${usernameToAccept} is now following you` });
+//   } catch (error) {
+//     console.error("❌ Error accepting follow request:", error);
+//     return response.status(500).json({ msg: "Internal server error", error: error.message });
+//   }
+// };
+
+
+// ✅ Reject Follow Request
+
 export const removeFollower = async (request: MyRequest, response: Response) => {
   try {
-    // ✅ Extract JWT token
+    // ✅ Extract JWT Token
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return response.status(401).json({ message: "Missing or invalid token" });
@@ -168,25 +429,25 @@ export const removeFollower = async (request: MyRequest, response: Response) => 
       return response.status(401).json({ message: "Invalid or expired token" });
     }
 
-    // ✅ Get username from token
-    const username = decodedToken.username;
-    if (!username) {
-      return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+    // ✅ Use `userId` instead of `username`
+    const userId = decodedToken.userId;
+    if (!userId) {
+      return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
     }
 
-    // ✅ Extract follower's username from request body
-    const { usernameToRemove } = request.body;
-    if (!usernameToRemove) {
-      return response.status(400).json({ message: "Username to remove is required" });
+    // ✅ Extract `userIdToRemove` instead of `usernameToRemove`
+    const { userIdToRemove } = request.body;
+    if (!userIdToRemove) {
+      return response.status(400).json({ message: "User ID to remove is required" });
     }
 
-    if (username === usernameToRemove) {
+    if (userId === userIdToRemove) {
       return response.status(400).json({ message: "You cannot remove yourself as a follower" });
     }
 
-    // ✅ Fetch the user (current user) and the follower
-    const currentUser = await User.findByPk(username);
-    const followerUser = await User.findByPk(usernameToRemove);
+    // ✅ Fetch both users using `findOne({ where: { userId } })`
+    const currentUser = await User.findOne({ where: { userId } });
+    const followerUser = await User.findOne({ where: { userId: userIdToRemove } });
 
     if (!currentUser) {
       return response.status(404).json({ message: "Current user not found" });
@@ -196,19 +457,24 @@ export const removeFollower = async (request: MyRequest, response: Response) => 
       return response.status(404).json({ message: "Follower user not found" });
     }
 
-    // ✅ Ensure followers array is initialized
+    // ✅ Ensure `followers` array is initialized
     currentUser.followers = currentUser.followers || [];
 
-    if (!currentUser.followers.includes(usernameToRemove)) {
+    if (!currentUser.followers.includes(userIdToRemove)) {
       return response.status(400).json({ message: "This user is not your follower" });
     }
 
-    // ✅ Remove follower from followers list
-    currentUser.followers = currentUser.followers.filter((follower) => follower !== usernameToRemove);
-    currentUser.followers_count = currentUser.followers.length; // ✅ Update followers count
+    // ✅ Remove follower from `followers` list
+    currentUser.followers = currentUser.followers.filter((id) => id !== userIdToRemove);
+    currentUser.followers_count = currentUser.followers.length;
     await currentUser.save();
 
-    return response.status(200).json({ message: `Removed ${usernameToRemove} from your followers` });
+    // ✅ Remove current user from the follower's `following` list
+    followerUser.following = followerUser.following || [];
+    followerUser.following = followerUser.following.filter((id) => id !== userId);
+    await followerUser.save();
+
+    return response.status(200).json({ message: `Removed user ${userIdToRemove} from your followers` });
 
   } catch (error) {
     console.error("❌ Error removing follower:", error);
@@ -218,6 +484,7 @@ export const removeFollower = async (request: MyRequest, response: Response) => 
 
 export const acceptFollowRequest = async (request: MyRequest, response: Response) => {
   try {
+    // ✅ Extract JWT Token
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return response.status(401).json({ message: "Missing or invalid token" });
@@ -231,48 +498,127 @@ export const acceptFollowRequest = async (request: MyRequest, response: Response
       return response.status(401).json({ message: "Invalid or expired token" });
     }
 
-    const username = decodedToken.username;
-    if (!username) {
-      return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+    const userId = decodedToken.userId; // ✅ Extracting userId from JWT
+    if (!userId) {
+      return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
     }
 
-    const { usernameToAccept } = request.body;
-    if (!usernameToAccept) {
-      return response.status(400).json({ msg: "Username to accept is required" });
+    // ✅ Extract userIdToAccept from request body
+    const { userIdToAccept } = request.body;
+    if (!userIdToAccept) {
+      return response.status(400).json({ message: "User ID to accept is required" });
     }
 
-    await sequelize.transaction(async (t) => {
-      const currentUser = await User.findByPk(username, { transaction: t });
+    // ✅ Fetch the current user
+    const currentUser = await User.findOne({ where: { userId } });
+    if (!currentUser) {
+      return response.status(404).json({ message: "Current user not found" });
+    }
 
-      if (!currentUser.pending_requests.includes(usernameToAccept)) {
-        return response.status(400).json({ msg: "No pending follow request from this user" });
-      }
+    // ✅ Check if userIdToAccept is in pending_requests
+    if (!currentUser.pending_requests.includes(userIdToAccept)) {
+      return response.status(400).json({ message: "No pending follow request from this user" });
+    }
 
-      // ✅ Remove from pending requests & add to followers
-      currentUser.pending_requests = currentUser.pending_requests.filter((u) => u !== usernameToAccept);
-      currentUser.followers = currentUser.followers || [];
-      currentUser.followers.push(usernameToAccept);
-      currentUser.followers_count = currentUser.followers.length; // ✅ Update followers count
-      await currentUser.save({ transaction: t });
+    console.log("✅ Before Accepting - Pending Requests:", currentUser.pending_requests);
+    console.log("✅ Before Accepting - Followers:", currentUser.followers);
 
-      // ✅ Update following list of the accepted user
-      const userToAccept = await User.findByPk(usernameToAccept, { transaction: t });
-      userToAccept.following = userToAccept.following || [];
-      userToAccept.following.push(username);
-      await userToAccept.save({ transaction: t });
-    });
+    // ✅ Remove from pending_requests
+    currentUser.pending_requests = currentUser.pending_requests.filter((id) => id !== userIdToAccept);
+    currentUser.changed("pending_requests", true);
 
-    return response.status(200).json({ msg: `${usernameToAccept} is now following you` });
+    // ✅ Ensure `followers` exists before updating
+    if (!Array.isArray(currentUser.followers)) {
+      currentUser.followers = [];
+    }
+
+    // ✅ Add userIdToAccept to `followers` list
+    if (!currentUser.followers.includes(userIdToAccept)) {
+      currentUser.followers.push(userIdToAccept);
+      currentUser.followers_count = currentUser.followers.length; // ✅ Update count
+      currentUser.changed("followers", true);
+    }
+
+    // ✅ Fetch the user who sent the request
+    const acceptedUser = await User.findOne({ where: { userId: userIdToAccept } });
+    if (!acceptedUser) {
+      return response.status(404).json({ message: "User to accept not found" });
+    }
+
+    // ✅ Ensure `following` exists before updating
+    if (!Array.isArray(acceptedUser.following)) {
+      acceptedUser.following = [];
+    }
+
+    // ✅ Add currentUser to `following` list of acceptedUser
+    if (!acceptedUser.following.includes(userId)) {
+      acceptedUser.following.push(userId);
+      acceptedUser.changed("following", true);
+    }
+
+    // ✅ Save changes for both users
+    await currentUser.save();
+    await acceptedUser.save();
+
+    console.log("✅ After Accepting - Followers:", currentUser.followers);
+    console.log("✅ After Accepting - Following (Accepted User):", acceptedUser.following);
+
+    return response.status(200).json({ message: `${userIdToAccept} is now following you` });
   } catch (error) {
     console.error("❌ Error accepting follow request:", error);
-    return response.status(500).json({ msg: "Internal server error", error: error.message });
+    return response.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
 
 
-// ✅ Reject Follow Request
+
+
+// export const rejectFollowRequest = async (request: MyRequest, response: Response) => {
+//   try {
+//     const authHeader = request.headers.authorization;
+//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//       return response.status(401).json({ message: "Missing or invalid token" });
+//     }
+
+//     const token = authHeader.split(" ")[1];
+
+//     let decodedToken;
+//     try {
+//       decodedToken = jwt.verify(token, SECRET_KEY);
+//     } catch (err) {
+//       return response.status(401).json({ message: "Invalid or expired token" });
+//     }
+
+//     const username = (decodedToken as any).username;
+//     if (!username) {
+//       return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//     }
+
+//     console.log("✅ Username Found:", username);
+
+//     const { usernameToReject } = request.body;
+
+//     if (!usernameToReject) {
+//       return response.status(400).json({ message: "Username to reject is required" });
+//     }
+
+//     const user = await User.findByPk(username);
+//     if (!user.pending_requests.includes(usernameToReject)) {
+//       return response.status(400).json({ message: "No pending follow request from this user" });
+//     }
+
+//     user.pending_requests = user.pending_requests.filter((req) => req !== usernameToReject);
+//     await user.save();
+
+//     return response.status(200).json({ message: `Follow request from ${usernameToReject} rejected` });
+//   } catch (error) {
+//     return response.status(500).json({ message: "Internal server error", error: error.message });
+//   }
+// };
+
 export const rejectFollowRequest = async (request: MyRequest, response: Response) => {
   try {
+    // ✅ Extract JWT Token
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return response.status(401).json({ message: "Missing or invalid token" });
@@ -287,29 +633,31 @@ export const rejectFollowRequest = async (request: MyRequest, response: Response
       return response.status(401).json({ message: "Invalid or expired token" });
     }
 
-    const username = (decodedToken as any).username;
-    if (!username) {
-      return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+    const userId = decodedToken.userId;
+    if (!userId) {
+      return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
     }
 
-    console.log("✅ Username Found:", username);
-
-    const { usernameToReject } = request.body;
-
-    if (!usernameToReject) {
-      return response.status(400).json({ message: "Username to reject is required" });
+    const { userIdToReject } = request.body;
+    if (!userIdToReject) {
+      return response.status(400).json({ message: "User ID to reject is required" });
     }
 
-    const user = await User.findByPk(username);
-    if (!user.pending_requests.includes(usernameToReject)) {
+    const user = await User.findOne({ where: { userId } });
+    if (!user) {
+      return response.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.pending_requests.includes(userIdToReject)) {
       return response.status(400).json({ message: "No pending follow request from this user" });
     }
 
-    user.pending_requests = user.pending_requests.filter((req) => req !== usernameToReject);
+    user.pending_requests = user.pending_requests.filter((id) => id !== userIdToReject);
     await user.save();
 
-    return response.status(200).json({ message: `Follow request from ${usernameToReject} rejected` });
+    return response.status(200).json({ message: `Follow request from user ${userIdToReject} rejected` });
   } catch (error) {
+    console.error("❌ Error rejecting follow request:", error);
     return response.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
@@ -974,4 +1322,236 @@ export const unblockUser = async (req: MyRequest, res: Response) => {
     return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
+// export const getFollowersDetails = async (request: MyRequest, response: Response) => {
+//   try {
+//     // ✅ Extract JWT Token
+//     const authHeader = request.headers.authorization;
+//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//       return response.status(401).json({ message: "Missing or invalid token" });
+//     }
+
+//     const token = authHeader.split(" ")[1];
+//     let decodedToken;
+//     try {
+//       decodedToken = jwt.verify(token, SECRET_KEY);
+//     } catch (err) {
+//       return response.status(401).json({ message: "Invalid or expired token" });
+//     }
+
+//     // ✅ Extract user ID from token
+//     const userId = decodedToken.userId;
+//     if (!userId) {
+//       return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
+//     }
+
+//     // ✅ Fetch the current user
+//     const currentUser = await User.findOne({ where: { userId } });
+
+//     if (!currentUser) {
+//       return response.status(404).json({ message: "User not found" });
+//     }
+
+//     // ✅ Get the list of follower IDs
+//     const followerIds = currentUser.followers || [];
+
+//     if (followerIds.length === 0) {
+//       return response.status(200).json({ message: "No followers found", followers: [] });
+//     }
+
+//     // ✅ Fetch follower details including anonymous name
+//     const followers = await User.findAll({
+//       where: { userId: followerIds },
+//       attributes: [
+//         "userId",
+//         "username",
+//         "fullname",
+//         "profile",
+//         "bio",
+//         "followers_count",
+//         "following",
+//         "anonymousName",
+//         "isAnonymous",
+//         "anonymousName"
+//       ],
+//     });
+
+//     // ✅ Format response to include anonymous names when applicable
+//     const formattedFollowers = followers.map(follower => ({
+//       userId: follower.userId,
+//       username:  follower.username, 
+//       fullname: follower.fullname, 
+//       profile: follower.profile,
+//       anonymousName: follower.anonymousName,
+//       bio: follower.bio,
+//       followers_count: follower.followers_count,
+//       following: follower.following,
+//       isAnonymous: follower.isAnonymous
+//     }));
+
+//     return response.status(200).json({ message: "Followers fetched successfully", followers: formattedFollowers });
+//   } catch (error) {
+//     console.error("❌ Error fetching followers:", error);
+//     return response.status(500).json({ message: "Internal server error", error: error.message });
+//   }
+// };
+
+
+
+export const getFollowersDetails = async (request: MyRequest, response: Response) => {
+  try {
+    // ✅ Extract JWT Token
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return response.status(401).json({ message: "Missing or invalid token" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    let decodedToken;
+    try {
+      decodedToken = jwt.verify(token, SECRET_KEY);
+    } catch (err) {
+      return response.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    // ✅ Extract user ID from token and debug
+    const userId = decodedToken.userId;
+    console.log("✅ Extracted userId from token:", userId);
+
+    if (!userId) {
+      return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
+    }
+
+    // ✅ Fetch the current user
+    const currentUser = await User.findOne({ where: { userId } });
+
+    if (!currentUser) {
+      console.error("❌ User not found in the database for userId:", userId);
+      return response.status(404).json({ message: "User not found" });
+    }
+
+    // ✅ Get the list of follower IDs
+    const followerIds = currentUser.followers || [];
+    console.log("✅ Follower IDs:", followerIds);
+
+    if (followerIds.length === 0) {
+      return response.status(200).json({ message: "No followers found", followers: [] });
+    }
+
+    // ✅ Fetch follower details including anonymous name
+    const followers = await User.findAll({
+      where: { userId: followerIds },
+      attributes: [
+        "userId",
+        "username",
+        "fullname",
+        "profile",
+        "bio",
+        "followers_count",
+        "following",
+        "anonymousName",
+        "isAnonymous"
+      ],
+    });
+
+    console.log("✅ Followers Found:", followers.length);
+
+    // ✅ Format response to include anonymous names when applicable
+    const formattedFollowers = followers.map(follower => ({
+      userId: follower.userId,
+      username:  follower.username,
+      fullname:  follower.fullname, 
+      anonymousName: follower.anonymousName,
+      profile: follower.profile,
+      bio: follower.bio,
+      followers_count: follower.followers_count,
+      following: follower.following,
+      isAnonymous: follower.isAnonymous
+    }));
+
+    return response.status(200).json({ message: "Followers fetched successfully", followers: formattedFollowers });
+  } catch (error) {
+    console.error("❌ Error fetching followers:", error);
+    return response.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
+export const getPendingFollowRequests = async (request: MyRequest, response: Response) => {
+  try {
+    // ✅ Extract JWT Token
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return response.status(401).json({ message: "Missing or invalid token" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    let decodedToken;
+    try {
+      decodedToken = jwt.verify(token, SECRET_KEY);
+    } catch (err) {
+      return response.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    // ✅ Extract user ID from token
+    const userId = decodedToken.userId;
+    console.log("✅ Extracted userId from token:", userId);
+
+    if (!userId) {
+      return response.status(401).json({ message: "Unauthorized: No userId found in JWT" });
+    }
+
+    // ✅ Fetch the current user
+    const currentUser = await User.findOne({ where: { userId } });
+
+    if (!currentUser) {
+      console.error("❌ User not found in the database for userId:", userId);
+      return response.status(404).json({ message: "User not found" });
+    }
+
+    // ✅ Get the list of pending request user IDs
+    const pendingRequestIds = currentUser.pending_requests || [];
+    console.log("✅ Pending Requests:", pendingRequestIds);
+
+    if (pendingRequestIds.length === 0) {
+      return response.status(200).json({ message: "No pending follow requests", pendingRequests: [] });
+    }
+
+    // ✅ Fetch details of users who sent follow requests
+    const pendingUsers = await User.findAll({
+      where: { userId: pendingRequestIds },
+      attributes: [
+        "userId",
+        "username",
+        "fullname",
+        "profile",
+        "bio",
+        "followers_count",
+        "following",
+        "anonymousName",
+        "isAnonymous"
+      ],
+    });
+
+    console.log("✅ Pending Users Found:", pendingUsers.length);
+
+    // ✅ Format response to include anonymous names when applicable
+    const formattedPendingRequests = pendingUsers.map(user => ({
+      userId: user.userId,
+      username:  user.username, 
+      fullname:  user.fullname, 
+      profile: user.profile,
+      bio: user.bio,
+      anonymousName: user.anonymousName,
+      followers_count: user.followers_count,
+      following: user.following,
+      isAnonymous: user.isAnonymous
+    }));
+
+    return response.status(200).json({ message: "Pending follow requests fetched successfully", pendingRequests: formattedPendingRequests });
+  } catch (error) {
+    console.error("❌ Error fetching pending follow requests:", error);
+    return response.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
 

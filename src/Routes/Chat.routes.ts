@@ -12,7 +12,8 @@ import { generateAblyToken,
     sharePost,
     blockChat,
     sharePostWithMultipleUsers,
-    unblockChat
+    unblockChat,
+    getUsersFromChat
 } from "../Controller/Chat.controller";
 // import { authenticateUser } from "../Controller/Auth.controller";
 import { authenticate } from "../Config/clerksetup";
@@ -67,6 +68,11 @@ router.post("/api/chat/share-post-multiple", authenticate, sharePostWithMultiple
 
 // ✅ Unblock a Chat (New Route)
 router.post("/api/chat/unblock", authenticate, unblockChat);
+
+
+// ✅ Get Users from a Chat by chatId
+router.get("/api/chat/users/:chatId", authenticate, getUsersFromChat);
+
 export default router; 
   
 

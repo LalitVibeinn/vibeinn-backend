@@ -14,7 +14,9 @@ import {followUser,
    editUserProfile,
    searchUsers,
    blockUser,
-   unblockUser
+   unblockUser,
+   getFollowersDetails,
+   getPendingFollowRequests
   } from "../Controller/User.controller";
 import { authenticate } from "../Config/clerksetup";
 import { syncClerkUsers } from "../Controller/User.controller";
@@ -30,7 +32,7 @@ router.get("/sync-clerk-users", syncClerkUsers);
 
 
 // ✅ Follow a user
-router.post("/api/follow", json(), authenticate, (request, response) => {
+router.post("/api/followUser", json(), authenticate, (request, response) => {
   followUser(request, response);
 });
 
@@ -103,6 +105,17 @@ router.post("/api/user/block", json(), authenticate, blockUser);
 // ✅ Unblock a user
 router.post("/api/user/unblock", json(), authenticate, unblockUser);
 
-export default router;
+router.get("/api/followers", authenticate, (request, response) => {
+  getFollowersDetails(request, response);
+});
 
+
+router.get("/pending-requests", authenticate, (request, response) => {
+  getPendingFollowRequests(request, response);
+});
+
+
+
+export default router;
+  
 
