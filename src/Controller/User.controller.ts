@@ -82,6 +82,55 @@ const SECRET_KEY = process.env.CLERK_SECRET_KEY as string;
 //   }
 // };
 
+
+  // ✅ Toggle Anonymity
+  export const toggleAnonymity = async (request: MyRequest, response: Response) => {
+    try {
+      const authHeader = request.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return response.status(401).json({ message: "Missing or invalid token" });
+      }
+  
+      const token = authHeader.split(" ")[1];
+  
+      let decodedToken;
+      try {
+        decodedToken = jwt.verify(token, SECRET_KEY);
+      } catch (err) {
+        return response.status(401).json({ message: "Invalid or expired token" });
+      }
+  
+      const username = (decodedToken as any).username;
+      if (!username) {
+        return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+      }
+  
+      const user = await User.findOne({ where: { username } });
+      if (!user) {
+        return response.status(404).json({ message: "User not found" });
+      }
+  
+      // Toggle anonymity
+      user.isAnonymous = !user.isAnonymous;
+      
+      // ✅ Ensure an anonymous name is set, or default to "Anonymous"
+      if (!user.anonymousName) {
+        user.anonymousName = "Anonymous";
+      }
+  
+      await user.save();
+  
+      return response.status(200).json({
+        message: `Anonymity toggled successfully. Current state: ${user.isAnonymous ? "Anonymous" : "Real Name"}`,
+        isAnonymous: user.isAnonymous,
+        anonymousName: user.isAnonymous ? user.anonymousName : null,
+      });
+    } catch (error) {
+      console.error("❌ Error toggling anonymity:", error);
+      return response.status(500).json({ message: "Internal server error", error: error.message });
+    }
+  };
+  
 export const followUser = async (request: MyRequest, response: Response) => {
   try {
     // ✅ Extract JWT Token
@@ -858,53 +907,7 @@ export const getUserDetailsofclerk = async (req: Request, res: Response) =>  {
   };
 
 
-  // ✅ Toggle Anonymity
-export const toggleAnonymity = async (request: MyRequest, response: Response) => {
-  try {
-    const authHeader = request.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return response.status(401).json({ message: "Missing or invalid token" });
-    }
 
-    const token = authHeader.split(" ")[1];
-
-    let decodedToken;
-    try {
-      decodedToken = jwt.verify(token, SECRET_KEY);
-    } catch (err) {
-      return response.status(401).json({ message: "Invalid or expired token" });
-    }
-
-    const username = (decodedToken as any).username;
-    if (!username) {
-      return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
-    }
-
-    const user = await User.findOne({ where: { username } });
-    if (!user) {
-      return response.status(404).json({ message: "User not found" });
-    }
-
-    // Toggle anonymity
-    user.isAnonymous = !user.isAnonymous;
-    
-    // ✅ Ensure an anonymous name is set, or default to "Anonymous"
-    if (!user.anonymousName) {
-      user.anonymousName = "Anonymous";
-    }
-
-    await user.save();
-
-    return response.status(200).json({
-      message: `Anonymity toggled successfully. Current state: ${user.isAnonymous ? "Anonymous" : "Real Name"}`,
-      isAnonymous: user.isAnonymous,
-      anonymousName: user.isAnonymous ? user.anonymousName : null,
-    });
-  } catch (error) {
-    console.error("❌ Error toggling anonymity:", error);
-    return response.status(500).json({ message: "Internal server error", error: error.message });
-  }
-};
 
 
 
