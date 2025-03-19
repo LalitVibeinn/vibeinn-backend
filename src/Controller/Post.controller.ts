@@ -907,70 +907,70 @@ async getPosts(request: MyRequest, response: Response) {
 
 
 
-async like(request: MyRequest, response: Response) {
-    try {
-        const { id } = request.params;
+// async like(request: MyRequest, response: Response) {
+//     try {
+//         const { id } = request.params;
 
-        // ✅ Validate Authorization Token
-        const authHeader = request.headers.authorization;
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return response.status(401).json({ message: "Missing or invalid token" });
-        }
+//         // ✅ Validate Authorization Token
+//         const authHeader = request.headers.authorization;
+//         if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//             return response.status(401).json({ message: "Missing or invalid token" });
+//         }
 
-        const token = authHeader.split(" ")[1];
-        let decodedToken;
-        try {
-            decodedToken = jwt.verify(token, SECRET_KEY);
-        } catch (err) {
-            return response.status(401).json({ message: "Invalid or expired token" });
-        }
+//         const token = authHeader.split(" ")[1];
+//         let decodedToken;
+//         try {
+//             decodedToken = jwt.verify(token, SECRET_KEY);
+//         } catch (err) {
+//             return response.status(401).json({ message: "Invalid or expired token" });
+//         }
 
-        const userId = decodedToken.userId;
-        const username = decodedToken.username;
+//         const userId = decodedToken.userId;
+//         const username = decodedToken.username;
 
-        // ✅ Find User
-        const user = await User.findOne({ where: { userId } });
-        if (!user) {
-            return response.status(404).json({ message: "User not found" });
-        }
+//         // ✅ Find User
+//         const user = await User.findOne({ where: { userId } });
+//         if (!user) {
+//             return response.status(404).json({ message: "User not found" });
+//         }
 
-        // ✅ Find Post
-        const post = await Post.findByPk(id);
-        if (!post) {
-            return response.status(404).json({ message: "Post not found" });
-        }
+//         // ✅ Find Post
+//         const post = await Post.findByPk(id);
+//         if (!post) {
+//             return response.status(404).json({ message: "Post not found" });
+//         }
 
-        let likes = Array.isArray(post.likes) ? [...post.likes] : [];
-        const alreadyLiked = likes.some(like => like.username === username);
+//         let likes = Array.isArray(post.likes) ? [...post.likes] : [];
+//         const alreadyLiked = likes.some(like => like.username === username);
 
-        if (!alreadyLiked) {
-            const newLike = {
-                username,
-                displayAuthor: user.isAnonymous ? user.anonymousName : username, // ✅ Store static value
-                profilePic: user.isAnonymous ? user.anonymousProfile : user.profile // ✅ Store static value
-            };
+//         if (!alreadyLiked) {
+//             const newLike = {
+//                 username,
+//                 displayAuthor: user.isAnonymous ? user.anonymousName : username, // ✅ Store static value
+//                 profilePic: user.isAnonymous ? user.anonymousProfile : user.profile // ✅ Store static value
+//             };
 
-            likes.push(newLike);
-            await post.update({ likes });
+//             likes.push(newLike);
+//             await post.update({ likes });
 
-            console.log(`📢 ${user.username} liked post ${post.id}`);
+//             console.log(`📢 ${user.username} liked post ${post.id}`);
 
-            // ✅ Award VibeScore for liking
-            await updateVibeScore(userId, 1, "like");
+//             // ✅ Award VibeScore for liking
+//             await updateVibeScore(userId, 1, "like");
 
-            return response.status(200).json({
-                message: "Liked post successfully",
-                totalLikes: likes.length,
-                likedBy: likes
-            });
-        } else {
-            return response.status(400).json({ message: "Already liked" });
-        }
-    } catch (error) {
-        console.error("❌ Error liking post:", error);
-        return response.status(500).json({ message: "Internal server error", error: error.message });
-    }
-}
+//             return response.status(200).json({
+//                 message: "Liked post successfully",
+//                 totalLikes: likes.length,
+//                 likedBy: likes
+//             });
+//         } else {
+//             return response.status(400).json({ message: "Already liked" });
+//         }
+//     } catch (error) {
+//         console.error("❌ Error liking post:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
 
 
 
@@ -1110,6 +1110,73 @@ async like(request: MyRequest, response: Response) {
 //         return response.status(500).json({ message: "Internal server error", error: error.message });
 //     }
 // }
+
+async like(request: MyRequest, response: Response) {
+    try {
+        const { id } = request.params;
+
+        // ✅ Validate Authorization Token
+        const authHeader = request.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return response.status(401).json({ message: "Missing or invalid token" });
+        }
+
+        const token = authHeader.split(" ")[1];
+        let decodedToken;
+        try {
+            decodedToken = jwt.verify(token, SECRET_KEY);
+        } catch (err) {
+            return response.status(401).json({ message: "Invalid or expired token" });
+        }
+
+        const userId = decodedToken.userId;
+
+        // ✅ Find User by `userId`
+        const user = await User.findOne({ where: { userId } });
+        if (!user) {
+            return response.status(404).json({ message: "User not found" });
+        }
+
+        // ✅ Find Post
+        const post = await Post.findByPk(id);
+        if (!post) {
+            return response.status(404).json({ message: "Post not found" });
+        }
+
+        let likes = Array.isArray(post.likes) ? [...post.likes] : [];
+        const alreadyLiked = likes.some(like => like.userId === userId);
+
+        if (!alreadyLiked) {
+            const newLike = {
+                userId, // ✅ Store userId
+                username: user.username, 
+                displayAuthor: user.isAnonymous ? user.anonymousName : user.username, 
+                profilePic: user.isAnonymous ? user.anonymousProfile : user.profile
+            };
+
+            likes.push(newLike);
+            await post.update({ likes });
+
+            console.log(`📢 ${user.username} liked post ${post.id}`);
+
+            // ✅ Award VibeScore for liking
+            await updateVibeScore(userId, 1, "like");
+
+            return response.status(200).json({
+                message: "Liked post successfully",
+                totalLikes: likes.length,
+                likedBy: likes
+            });
+        } else {
+            return response.status(400).json({ message: "Already liked" });
+        }
+    } catch (error) {
+        console.error("❌ Error liking post:", error);
+        return response.status(500).json({ message: "Internal server error", error: error.message });
+    }
+}
+
+
 async unlike(request: MyRequest, response: Response) {
     try {
         const { id } = request.params;
@@ -1126,38 +1193,42 @@ async unlike(request: MyRequest, response: Response) {
             return response.status(401).json({ message: "Invalid or expired token" });
         }
 
-        const username = decodedToken.username;
-        if (!username) {
-            return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+        const userId = decodedToken.userId;
+
+        // ✅ Find User by `userId`
+        const user = await User.findOne({ where: { userId } });
+        if (!user) {
+            return response.status(404).json({ message: "User not found" });
         }
 
+        // ✅ Find Post
         const post = await Post.findByPk(id);
         if (!post) {
             return response.status(404).json({ message: "Post not found" });
         }
 
-        let likes = post.likes || [];
+        let likes = Array.isArray(post.likes) ? [...post.likes] : [];
 
-        // ✅ Ensure we only remove the like based on stored username
-        const previousLikeIndex = likes.findIndex(like => like.username === username);
-        if (previousLikeIndex === -1) {
+        // ✅ Remove like using `userId`
+        const updatedLikes = likes.filter(like => like.userId !== userId);
+
+        if (likes.length === updatedLikes.length) {
             return response.status(400).json({ message: "Like not found" });
         }
 
-        likes.splice(previousLikeIndex, 1); // ✅ Remove the like
+        await post.update({ likes: updatedLikes });
 
-        await post.update({ likes });
-
-        return response.status(200).json({ 
+        return response.status(200).json({
             message: "Unliked post successfully",
-            totalLikes: likes.length,
-            likedBy: likes
+            totalLikes: updatedLikes.length,
+            likedBy: updatedLikes
         });
     } catch (error) {
         console.error("❌ Error unliking post:", error);
         return response.status(500).json({ message: "Internal server error", error: error.message });
     }
 }
+
 
 async comment(request: MyRequest, response: Response) {
     try {
