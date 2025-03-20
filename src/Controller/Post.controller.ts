@@ -121,8 +121,6 @@ const SECRET_KEY = process.env.CLERK_SECRET_KEY as string;
 // };
 
 
-
-
 export const updateVibeScore = async (
     userId: string, 
     incrementScore: number, 
@@ -333,10 +331,104 @@ const checkLikeMilestone = async (user: User, postId: string) => {
 export class PostController {
 
 
+// async create(request: MyRequest, response: Response) {
+//     try {
+//         const form = new IncomingForm();
+//         form.parse(request, async (error, fields, files) => {
+//             if (error) {
+//                 return response.status(500).json({ message: 'Network Error: Failed to upload post' });
+//             }
 
+//             // ✅ Validate Authorization Token
+//             const authHeader = request.headers.authorization;
+//             if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//                 return response.status(401).json({ message: "Missing or invalid token" });
+//             }
 
+//             const token = authHeader.split(" ")[1];
+//             let decodedToken;
+//             try {
+//                 decodedToken = jwt.verify(token, SECRET_KEY);
+//             } catch (err) {
+//                 return response.status(401).json({ message: "Invalid or expired token" });
+//             }
 
+//             const username = decodedToken.username;
+//             const userId = decodedToken.userId;
 
+//             if (!username) {
+//                 return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//             }
+
+//             // ✅ Find the User
+//             const user = await User.findOne({ where: { username } });
+//             if (!user) {
+//                 return response.status(404).json({ message: "User not found" });
+//             }
+
+//             // ✅ Determine Post Category
+//             let postCategory = fields.post_category ? String(fields.post_category).trim().toLowerCase() : "general";
+//             const validCategories = ["sports", "entertainment", "technology", "news", "education", "general"];
+//             if (!validCategories.includes(postCategory)) {
+//                 postCategory = "general";
+//             }
+
+//             // ✅ Handle Media Uploads
+//             const media_urls: string[] = [];
+//             for (const [, file] of Object.entries(files as { [key: string]: File })) {
+//                 const file_url = await cloudinaryImageUploadMethod(file.path);
+//                 media_urls.push(file_url);
+//             }
+//             const displayAuthor = user.isAnonymous ? user.anonymousName || "Anonymous" : username;
+//             const profilePic = user.isAnonymous ? user.anonymousProfile : user.profile;
+//             // ✅ Create the Post
+//             const post = await Post.create({
+//                 media: media_urls,
+//                 caption: fields.caption ? String(fields.caption) : "",
+//                 author: username,
+//                 displayAuthor, // ✅ Store static display name
+//                 profilePic, // ✅ Store static profile picture
+//                 visibility: fields.visibility || "everyone",
+//                 post_category: postCategory,
+//                 likes: [],
+//                 comments: [],
+//                 views: 0,
+//                 viewedUsers: []
+//             });
+
+//             console.log("📢 Post Created with Category:", post.post_category);
+
+//             // ✅ Update post count
+//             user.postCount += 1;
+//             await user.save();
+
+//             // ✅ Award VibeScore for posting
+//             const points = postCategory === "general" ? 3 : 5;
+//             await updateVibeScore(userId, points, "post");
+
+//             return response.status(201).json({
+//                 message: 'Post created successfully',
+//                 postDetails: {
+//                     postId: post.id,
+//                     media: post.media,
+//                     caption: post.caption,
+//                     author: post.author,
+//                     displayAuthor: post.displayAuthor,
+//                     visibility: post.visibility,
+//                     post_category: post.post_category,
+//                     createdAt: post.createdAt,
+//                     userId: user.userId,
+//                     likes: post.likes,
+//                     comments: post.comments,
+//                     views: post.views
+//                 },
+//             });
+//         });
+//     } catch (error) {
+//         console.error("❌ Error creating post:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
 
 async create(request: MyRequest, response: Response) {
     try {
@@ -373,7 +465,10 @@ async create(request: MyRequest, response: Response) {
                 return response.status(404).json({ message: "User not found" });
             }
 
-            // ✅ Determine Post Category
+            // ✅ Capture anonymity details at the time of post creation
+            const displayAuthor = user.isAnonymous ? user.anonymousName || "Anonymous" : username;
+            const profilePic = user.isAnonymous ? user.anonymousProfile : user.profile;
+
             let postCategory = fields.post_category ? String(fields.post_category).trim().toLowerCase() : "general";
             const validCategories = ["sports", "entertainment", "technology", "news", "education", "general"];
             if (!validCategories.includes(postCategory)) {
@@ -392,7 +487,8 @@ async create(request: MyRequest, response: Response) {
                 media: media_urls,
                 caption: fields.caption ? String(fields.caption) : "",
                 author: username,
-                displayAuthor: user.isAnonymous ? (user.anonymousName || "Anonymous") : username,
+                displayAuthor, // ✅ Store static display name
+                profilePic, // ✅ Store static profile picture
                 visibility: fields.visibility || "everyone",
                 post_category: postCategory,
                 likes: [],
@@ -403,7 +499,6 @@ async create(request: MyRequest, response: Response) {
 
             console.log("📢 Post Created with Category:", post.post_category);
 
-            // ✅ Update post count
             user.postCount += 1;
             await user.save();
 
@@ -413,20 +508,7 @@ async create(request: MyRequest, response: Response) {
 
             return response.status(201).json({
                 message: 'Post created successfully',
-                postDetails: {
-                    postId: post.id,
-                    media: post.media,
-                    caption: post.caption,
-                    author: post.author,
-                    displayAuthor: post.displayAuthor,
-                    visibility: post.visibility,
-                    post_category: post.post_category,
-                    createdAt: post.createdAt,
-                    userId: user.userId,
-                    likes: post.likes,
-                    comments: post.comments,
-                    views: post.views
-                },
+                postDetails: post
             });
         });
     } catch (error) {
@@ -434,7 +516,6 @@ async create(request: MyRequest, response: Response) {
         return response.status(500).json({ message: "Internal server error", error: error.message });
     }
 }
-
 
 
 
@@ -496,15 +577,223 @@ async create(request: MyRequest, response: Response) {
   
 
 
+// async getPosts(request: MyRequest, response: Response) {
+//     try {
+//         // ✅ Validate Authorization Header
+//         const authHeader = request.headers.authorization;
+//         if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//             return response.status(401).json({ message: "Missing or invalid token" });
+//         }
+
+//         // ✅ Verify JWT Token
+//         const token = authHeader.split(" ")[1];
+//         let decodedToken;
+//         try {
+//             decodedToken = jwt.verify(token, SECRET_KEY);
+//         } catch (err) {
+//             return response.status(401).json({ message: "Invalid or expired token" });
+//         }
+
+//         // ✅ Extract Logged-in Username
+//         const username = decodedToken.username;
+//         if (!username) {
+//             return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//         }
+
+//         // ✅ Fetch the logged-in user
+//         const currentUser = await User.findOne({ where: { username } });
+//         if (!currentUser) {
+//             return response.status(404).json({ message: "User not found" });
+//         }
+
+//         // ✅ Get the list of users the current user follows
+//         const following = currentUser.following || [];
+
+//         // ✅ Read pagination parameters and convert them to numbers
+//         const page = parseInt(request.query.page as string) || 1;
+//         const limit = parseInt(request.query.limit as string) || 10;
+//         const offset = (page - 1) * limit;
+
+//         // ✅ Fetch total post count (for pagination)
+//         const totalPosts = await Post.count();
+
+//         // ✅ Fetch paginated posts
+//         const posts = await Post.findAll({
+//             include: [{
+//                 model: User,
+//                 attributes: ['userId', 'username', 'fullname', 'profile', 'isAnonymous', 'anonymousProfile', 'anonymousName']
+//             }],
+//             attributes: [
+//                 'id', 'media', 'caption', 'author', 'displayAuthor', 'likes', 
+//                 'comments', 'visibility', 'post_category', 'views', 'createdAt', 'updatedAt'
+//             ],
+//             order: [['createdAt', 'DESC']], 
+//             limit: limit,  
+//             offset: offset  
+//         });
+
+//         // ✅ Process posts efficiently
+//         const processedPosts = await Promise.all(posts.map(async (post) => {
+//             const postData = post.toJSON();
+
+//             // ✅ Fetch user details for the author
+//             const postAuthor = await User.findOne({
+//                 where: { username: postData.author },
+//                 attributes: ['userId', 'username', 'isAnonymous', 'anonymousName', 'profile', 'anonymousProfile']
+//             });
+
+//             // ✅ Ensure likes is always an array before mapping
+//             const likedUsers = Array.isArray(postData.likes) ? postData.likes.map(like => ({
+//                 username: like.username,
+//                 displayAuthor: like.displayAuthor,
+//                 profilePic: like.profilePic
+//             })) : [];
+
+//             // ✅ Ensure comments is always an array before mapping
+//             const processedComments = Array.isArray(postData.comments) ? 
+//                 await Promise.all(postData.comments.map(async (comment) => {
+//                     const commentAuthor = await User.findOne({
+//                         where: { username: comment.username },
+//                         attributes: ['isAnonymous', 'anonymousName', 'profile', 'anonymousProfile']
+//                     });
+
+//                     return {
+//                         ...comment,
+//                         displayAuthor: commentAuthor?.isAnonymous ? commentAuthor?.anonymousName || "Anonymous" : comment.username,
+//                         profilePic: commentAuthor?.isAnonymous ? commentAuthor?.anonymousProfile : commentAuthor?.profile,
+//                         replies: Array.isArray(comment.replies) ? await Promise.all(comment.replies.map(async (reply) => {
+//                             const replyAuthor = await User.findOne({
+//                                 where: { username: reply.username },
+//                                 attributes: ['isAnonymous', 'anonymousName', 'profile', 'anonymousProfile']
+//                             });
+
+//                             return {
+//                                 ...reply,
+//                                 displayAuthor: replyAuthor?.isAnonymous ? replyAuthor?.anonymousName || "Anonymous" : reply.username,
+//                                 profilePic: replyAuthor?.isAnonymous ? replyAuthor?.anonymousProfile : replyAuthor?.profile,
+//                             };
+//                         })) : []
+//                     };
+//                 })) : [];
+
+//             return {
+//                 ...postData,
+//                 totalLikes: likedUsers.length,
+//                 likedBy: likedUsers,
+//                 userId: postAuthor?.userId,
+//                 displayAuthor: postAuthor?.isAnonymous ? (postAuthor?.anonymousName || "Anonymous") : postAuthor?.username,
+//                 profilePic: postAuthor?.isAnonymous ? postAuthor?.anonymousProfile : postAuthor?.profile,
+//                 comments: processedComments
+//             };
+//         }));
+
+//         // ✅ Apply visibility filters
+//         const finalPosts = processedPosts.filter(post => {
+//             switch (post.visibility) {
+//                 case 'friends':
+//                     return following.includes(post.author); 
+//                 case 'except_friends':
+//                     return !following.includes(post.author);
+//                 case 'everyone':
+//                     return true;
+//                 default:
+//                     return false;
+//             }
+//         });
+
+//         // ✅ Send the response
+//         return response.status(200).json({
+//             message: "Posts retrieved successfully",
+//             posts: finalPosts,
+//             currentPage: page,
+//             totalPages: Math.ceil(totalPosts / limit),
+//             totalPosts: totalPosts
+//         });
+
+//     } catch (error) {
+//         console.error("❌ Error fetching posts:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
+
+
+
+
+
+// async like(request: MyRequest, response: Response) {
+//     try {
+//         const { id } = request.params;
+
+//         // ✅ Validate Authorization Token
+//         const authHeader = request.headers.authorization;
+//         if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//             return response.status(401).json({ message: "Missing or invalid token" });
+//         }
+
+//         const token = authHeader.split(" ")[1];
+//         let decodedToken;
+//         try {
+//             decodedToken = jwt.verify(token, SECRET_KEY);
+//         } catch (err) {
+//             return response.status(401).json({ message: "Invalid or expired token" });
+//         }
+
+//         const userId = decodedToken.userId;
+//         const username = decodedToken.username;
+
+//         // ✅ Find User
+//         const user = await User.findOne({ where: { userId } });
+//         if (!user) {
+//             return response.status(404).json({ message: "User not found" });
+//         }
+
+//         // ✅ Find Post
+//         const post = await Post.findByPk(id);
+//         if (!post) {
+//             return response.status(404).json({ message: "Post not found" });
+//         }
+
+//         let likes = Array.isArray(post.likes) ? [...post.likes] : [];
+//         const alreadyLiked = likes.some(like => like.username === username);
+
+//         if (!alreadyLiked) {
+//             const newLike = {
+//                 username,
+//                 displayAuthor: user.isAnonymous ? user.anonymousName : username,
+//                 profilePic: user.isAnonymous ? user.anonymousProfile : user.profile
+//             };
+
+//             likes.push(newLike);
+//             await post.update({ likes });
+
+//             console.log(`📢 ${user.username} liked post ${post.id}`);
+
+//             // ✅ Award VibeScore for liking
+//             await updateVibeScore(userId, 1, "like");
+
+//             // ✅ Check for milestone rewards
+//             await checkLikeMilestone(user, post.id.toString());
+
+//             return response.status(200).json({
+//                 message: "Liked post successfully",
+//                 totalLikes: likes.length,
+//                 likedBy: likes
+//             });
+//         } else {
+//             return response.status(400).json({ message: "Already liked" });
+//         }
+//     } catch (error) {
+//         console.error("❌ Error liking post:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
 async getPosts(request: MyRequest, response: Response) {
     try {
-        // ✅ Validate Authorization Header
         const authHeader = request.headers.authorization;
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return response.status(401).json({ message: "Missing or invalid token" });
         }
 
-        // ✅ Verify JWT Token
         const token = authHeader.split(" ")[1];
         let decodedToken;
         try {
@@ -513,95 +802,76 @@ async getPosts(request: MyRequest, response: Response) {
             return response.status(401).json({ message: "Invalid or expired token" });
         }
 
-        // ✅ Extract Logged-in Username
         const username = decodedToken.username;
         if (!username) {
             return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
         }
 
-        // ✅ Fetch the logged-in user
         const currentUser = await User.findOne({ where: { username } });
         if (!currentUser) {
             return response.status(404).json({ message: "User not found" });
         }
 
-        // ✅ Get the list of users the current user follows
         const following = currentUser.following || [];
 
-        // ✅ Read pagination parameters and convert them to numbers
         const page = parseInt(request.query.page as string) || 1;
         const limit = parseInt(request.query.limit as string) || 10;
         const offset = (page - 1) * limit;
 
-        // ✅ Fetch total post count (for pagination)
-        const totalPosts = await Post.count();
-
-        // ✅ Fetch paginated posts
-        const posts = await Post.findAll({
-            include: [{
-                model: User,
-                attributes: ['userId', 'username', 'fullname', 'profile', 'isAnonymous', 'anonymousProfile', 'anonymousName']
-            }],
+        // ✅ Optimize using `findAndCountAll()`
+        const { count, rows: posts } = await Post.findAndCountAll({
             attributes: [
-                'id', 'media', 'caption', 'author', 'displayAuthor', 'likes', 
-                'comments', 'visibility', 'post_category', 'views', 'createdAt', 'updatedAt'
+                'id',
+                'media',
+                'caption',
+                'author',
+                'displayAuthor',
+                'likes',
+                'comments',
+                'visibility',
+                'post_category',
+                'views',
+                'created_at',
+                'updated_at'
             ],
-            order: [['createdAt', 'DESC']], 
-            limit: limit,  
-            offset: offset  
+            order: [['createdAt', 'DESC']],
+            limit: limit,
+            offset: offset
         });
 
         // ✅ Process posts efficiently
         const processedPosts = await Promise.all(posts.map(async (post) => {
             const postData = post.toJSON();
 
-            // ✅ Fetch user details for the author
-            const postAuthor = await User.findOne({
-                where: { username: postData.author },
-                attributes: ['userId', 'username', 'isAnonymous', 'anonymousName', 'profile', 'anonymousProfile']
-            });
+            // Ensure anonymity is preserved for likes
+            const likedBy = Array.isArray(postData.likes)
+                ? postData.likes.map(like => ({
+                    username: like.username,
+                    displayAuthor: like.displayAuthor,
+                    profilePic: like.profilePic
+                }))
+                : [];
 
-            // ✅ Ensure likes is always an array before mapping
-            const likedUsers = Array.isArray(postData.likes) ? postData.likes.map(like => ({
-                username: like.username,
-                displayAuthor: like.displayAuthor,
-                profilePic: like.profilePic
-            })) : [];
-
-            // ✅ Ensure comments is always an array before mapping
-            const processedComments = Array.isArray(postData.comments) ? 
-                await Promise.all(postData.comments.map(async (comment) => {
-                    const commentAuthor = await User.findOne({
-                        where: { username: comment.username },
-                        attributes: ['isAnonymous', 'anonymousName', 'profile', 'anonymousProfile']
-                    });
-
-                    return {
-                        ...comment,
-                        displayAuthor: commentAuthor?.isAnonymous ? commentAuthor?.anonymousName || "Anonymous" : comment.username,
-                        profilePic: commentAuthor?.isAnonymous ? commentAuthor?.anonymousProfile : commentAuthor?.profile,
-                        replies: Array.isArray(comment.replies) ? await Promise.all(comment.replies.map(async (reply) => {
-                            const replyAuthor = await User.findOne({
-                                where: { username: reply.username },
-                                attributes: ['isAnonymous', 'anonymousName', 'profile', 'anonymousProfile']
-                            });
-
-                            return {
-                                ...reply,
-                                displayAuthor: replyAuthor?.isAnonymous ? replyAuthor?.anonymousName || "Anonymous" : reply.username,
-                                profilePic: replyAuthor?.isAnonymous ? replyAuthor?.anonymousProfile : replyAuthor?.profile,
-                            };
-                        })) : []
-                    };
-                })) : [];
+            // Ensure anonymity is preserved for comments
+            const processedComments = Array.isArray(postData.comments)
+                ? await Promise.all(postData.comments.map(async (comment) => ({
+                    ...comment,
+                    displayAuthor: comment.displayAuthor,
+                    profilePic: comment.profilePic,
+                    replies: Array.isArray(comment.replies)
+                        ? comment.replies.map(reply => ({
+                            ...reply,
+                            displayAuthor: reply.displayAuthor,
+                            profilePic: reply.profilePic
+                        }))
+                        : []
+                })))
+                : [];
 
             return {
                 ...postData,
-                totalLikes: likedUsers.length,
-                likedBy: likedUsers,
-                userId: postAuthor?.userId,
-                displayAuthor: postAuthor?.isAnonymous ? (postAuthor?.anonymousName || "Anonymous") : postAuthor?.username,
-                profilePic: postAuthor?.isAnonymous ? postAuthor?.anonymousProfile : postAuthor?.profile,
+                totalLikes: likedBy.length,
+                likedBy,
                 comments: processedComments
             };
         }));
@@ -610,7 +880,7 @@ async getPosts(request: MyRequest, response: Response) {
         const finalPosts = processedPosts.filter(post => {
             switch (post.visibility) {
                 case 'friends':
-                    return following.includes(post.author); 
+                    return following.includes(post.author);
                 case 'except_friends':
                     return !following.includes(post.author);
                 case 'everyone':
@@ -620,13 +890,12 @@ async getPosts(request: MyRequest, response: Response) {
             }
         });
 
-        // ✅ Send the response
         return response.status(200).json({
             message: "Posts retrieved successfully",
             posts: finalPosts,
             currentPage: page,
-            totalPages: Math.ceil(totalPosts / limit),
-            totalPosts: totalPosts
+            totalPages: Math.ceil(count / limit),
+            totalPosts: count
         });
 
     } catch (error) {
@@ -638,14 +907,209 @@ async getPosts(request: MyRequest, response: Response) {
 
 
 
+// async like(request: MyRequest, response: Response) {
+//     try {
+//         const { id } = request.params;
+
+//         // ✅ Validate Authorization Token
+//         const authHeader = request.headers.authorization;
+//         if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//             return response.status(401).json({ message: "Missing or invalid token" });
+//         }
+
+//         const token = authHeader.split(" ")[1];
+//         let decodedToken;
+//         try {
+//             decodedToken = jwt.verify(token, SECRET_KEY);
+//         } catch (err) {
+//             return response.status(401).json({ message: "Invalid or expired token" });
+//         }
+
+//         const userId = decodedToken.userId;
+//         const username = decodedToken.username;
+
+//         // ✅ Find User
+//         const user = await User.findOne({ where: { userId } });
+//         if (!user) {
+//             return response.status(404).json({ message: "User not found" });
+//         }
+
+//         // ✅ Find Post
+//         const post = await Post.findByPk(id);
+//         if (!post) {
+//             return response.status(404).json({ message: "Post not found" });
+//         }
+
+//         let likes = Array.isArray(post.likes) ? [...post.likes] : [];
+//         const alreadyLiked = likes.some(like => like.username === username);
+
+//         if (!alreadyLiked) {
+//             const newLike = {
+//                 username,
+//                 displayAuthor: user.isAnonymous ? user.anonymousName : username, // ✅ Store static value
+//                 profilePic: user.isAnonymous ? user.anonymousProfile : user.profile // ✅ Store static value
+//             };
+
+//             likes.push(newLike);
+//             await post.update({ likes });
+
+//             console.log(`📢 ${user.username} liked post ${post.id}`);
+
+//             // ✅ Award VibeScore for liking
+//             await updateVibeScore(userId, 1, "like");
+
+//             return response.status(200).json({
+//                 message: "Liked post successfully",
+//                 totalLikes: likes.length,
+//                 likedBy: likes
+//             });
+//         } else {
+//             return response.status(400).json({ message: "Already liked" });
+//         }
+//     } catch (error) {
+//         console.error("❌ Error liking post:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
 
 
 
 
 
 
+// async unlike(request: MyRequest, response: Response) {
+//     try {
+//         const { id } = request.params;
+//         const authHeader = request.headers.authorization;
+//         if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//             return response.status(401).json({ message: "Missing or invalid token" });
+//         }
+
+//         const token = authHeader.split(" ")[1];
+//         let decodedToken;
+//         try {
+//             decodedToken = jwt.verify(token, SECRET_KEY);
+//         } catch (err) {
+//             return response.status(401).json({ message: "Invalid or expired token" });
+//         }
+
+//         const username = decodedToken.username;
+//         if (!username) {
+//             return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//         }
+
+//         const post = await Post.findByPk(id);
+//         if (!post) {
+//             return response.status(404).json({ message: "Post not found" });
+//         }
+
+//         let likes = post.likes || [];
+
+//         // ✅ Remove only the like associated with the user's username
+//         likes = likes.filter(like => like.username !== username);
+
+//         await post.update({ likes });
+
+//         return response.status(200).json({ 
+//             message: "Unliked post successfully",
+//             totalLikes: likes.length,
+//             likedBy: likes
+//         });
+//     } catch (error) {
+//         console.error("❌ Error unliking post:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
 
 
+
+// async comment(request: MyRequest, response: Response) {
+//     try {
+//         // ✅ Validate Authorization Token
+//         const authHeader = request.headers.authorization;
+//         if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//             return response.status(401).json({ message: "Missing or invalid token" });
+//         }
+
+//         const token = authHeader.split(" ")[1];
+//         let decodedToken;
+//         try {
+//             decodedToken = jwt.verify(token, SECRET_KEY);
+//         } catch (err) {
+//             return response.status(401).json({ message: "Invalid or expired token" });
+//         }
+
+//         const userId = decodedToken.userId;
+//         const username = decodedToken.username;
+//         const { id } = request.params;
+//         const { comment } = request.body;
+
+//         if (!comment) {
+//             return response.status(400).json({ message: "Comment cannot be empty" });
+//         }
+
+//         // ✅ Find Post
+//         const post = await Post.findByPk(id);
+//         if (!post) {
+//             return response.status(404).json({ message: "Post not found" });
+//         }
+
+//         // ✅ Find User
+//         const user = await User.findOne({ where: { userId } });
+//         if (!user) {
+//             return response.status(404).json({ message: "User not found" });
+//         }
+
+//         let comments = Array.isArray(post.comments) ? post.comments : [];
+//         const newComment = {
+//             username,
+//             displayAuthor: user.isAnonymous ? user.anonymousName || "Anonymous" : username,
+//             profilePic: user.isAnonymous ? user.anonymousProfile : user.profile,
+//             comment,
+//             createdAt: new Date().toISOString(),
+//             replies: []
+//         };
+
+//         comments.push(newComment);
+//         await post.update({ comments });
+
+//         console.log(`📝 ${user.username} commented on post ${post.id}`);
+
+//         // ✅ Ensure `dailyVibePoints` is an object
+//         if (!user.dailyVibePoints || typeof user.dailyVibePoints !== "object") {
+//             user.dailyVibePoints = { comment: 0, remainingLimit: 50 };
+//         }
+
+//         // ✅ Reset daily comment count if it's a new day
+//         const today = new Date().toISOString().split("T")[0];
+//         if (user.lastVibeUpdate !== today) {
+//             console.log(`🔄 Resetting daily comment count for ${user.username}`);
+//             user.dailyVibePoints.comment = 0;
+//             user.dailyVibePoints.remainingLimit = 50; // ✅ Reset daily limit
+//             user.lastVibeUpdate = today;
+//         }
+
+//         // ✅ Increment daily comment count
+//         user.dailyVibePoints.comment += 1;
+//         console.log(`📝 ${user.username} has commented ${user.dailyVibePoints.comment} times today.`);
+
+//         // ✅ Check if it's the 5th comment to award VibeScore
+//         if (user.dailyVibePoints.comment % 5 === 0) {
+//             console.log(`🔥 ${user.username} reached ${user.dailyVibePoints.comment} comments. Awarding 1 VibeScore.`);
+
+//             await updateVibeScore(userId, 1, "comment"); // ✅ Increase VibeScore and deduct limit inside function
+//         }
+
+//         // ✅ Explicitly save dailyVibePoints
+//         user.set("dailyVibePoints", user.dailyVibePoints);
+//         await user.save();
+
+//         return response.status(200).json({ message: "Comment added successfully", comments });
+//     } catch (error) {
+//         console.error("❌ Error adding comment:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
 
 async like(request: MyRequest, response: Response) {
     try {
@@ -666,9 +1130,8 @@ async like(request: MyRequest, response: Response) {
         }
 
         const userId = decodedToken.userId;
-        const username = decodedToken.username;
 
-        // ✅ Find User
+        // ✅ Find User by `userId`
         const user = await User.findOne({ where: { userId } });
         if (!user) {
             return response.status(404).json({ message: "User not found" });
@@ -681,12 +1144,13 @@ async like(request: MyRequest, response: Response) {
         }
 
         let likes = Array.isArray(post.likes) ? [...post.likes] : [];
-        const alreadyLiked = likes.some(like => like.username === username);
+        const alreadyLiked = likes.some(like => like.userId === userId);
 
         if (!alreadyLiked) {
             const newLike = {
-                username,
-                displayAuthor: user.isAnonymous ? user.anonymousName : username,
+                userId, // ✅ Store userId
+                username: user.username, 
+                displayAuthor: user.isAnonymous ? user.anonymousName : user.username, 
                 profilePic: user.isAnonymous ? user.anonymousProfile : user.profile
             };
 
@@ -697,9 +1161,6 @@ async like(request: MyRequest, response: Response) {
 
             // ✅ Award VibeScore for liking
             await updateVibeScore(userId, 1, "like");
-
-            // ✅ Check for milestone rewards
-            await checkLikeMilestone(user, post.id.toString());
 
             return response.status(200).json({
                 message: "Liked post successfully",
@@ -714,11 +1175,6 @@ async like(request: MyRequest, response: Response) {
         return response.status(500).json({ message: "Internal server error", error: error.message });
     }
 }
-
-
-
-
-
 
 
 async unlike(request: MyRequest, response: Response) {
@@ -737,34 +1193,41 @@ async unlike(request: MyRequest, response: Response) {
             return response.status(401).json({ message: "Invalid or expired token" });
         }
 
-        const username = decodedToken.username;
-        if (!username) {
-            return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+        const userId = decodedToken.userId;
+
+        // ✅ Find User by `userId`
+        const user = await User.findOne({ where: { userId } });
+        if (!user) {
+            return response.status(404).json({ message: "User not found" });
         }
 
+        // ✅ Find Post
         const post = await Post.findByPk(id);
         if (!post) {
             return response.status(404).json({ message: "Post not found" });
         }
 
-        let likes = post.likes || [];
+        let likes = Array.isArray(post.likes) ? [...post.likes] : [];
 
-        // ✅ Remove only the like associated with the user's username
-        likes = likes.filter(like => like.username !== username);
+        // ✅ Remove like using `userId`
+        const updatedLikes = likes.filter(like => like.userId !== userId);
 
-        await post.update({ likes });
+        if (likes.length === updatedLikes.length) {
+            return response.status(400).json({ message: "Like not found" });
+        }
 
-        return response.status(200).json({ 
+        await post.update({ likes: updatedLikes });
+
+        return response.status(200).json({
             message: "Unliked post successfully",
-            totalLikes: likes.length,
-            likedBy: likes
+            totalLikes: updatedLikes.length,
+            likedBy: updatedLikes
         });
     } catch (error) {
         console.error("❌ Error unliking post:", error);
         return response.status(500).json({ message: "Internal server error", error: error.message });
     }
 }
-
 
 
 async comment(request: MyRequest, response: Response) {
@@ -785,70 +1248,53 @@ async comment(request: MyRequest, response: Response) {
 
         const userId = decodedToken.userId;
         const username = decodedToken.username;
-        const { id } = request.params;
-        const { comment } = request.body;
+        const { id } = request.params; // ✅ Post ID
+        const { comment } = request.body; // ✅ Extract comment text
 
         if (!comment) {
             return response.status(400).json({ message: "Comment cannot be empty" });
         }
 
-        // ✅ Find Post
+        // ✅ Find the post
         const post = await Post.findByPk(id);
         if (!post) {
             return response.status(404).json({ message: "Post not found" });
         }
 
-        // ✅ Find User
+        // ✅ Find the user
         const user = await User.findOne({ where: { userId } });
         if (!user) {
             return response.status(404).json({ message: "User not found" });
         }
 
-        let comments = Array.isArray(post.comments) ? post.comments : [];
+        // ✅ Ensure `post.comments` is an array (Fix JSONB issue)
+        let commentsArray = Array.isArray(post.comments) ? post.comments : [];
+
+        // ✅ Create new comment object
         const newComment = {
             username,
             displayAuthor: user.isAnonymous ? user.anonymousName || "Anonymous" : username,
             profilePic: user.isAnonymous ? user.anonymousProfile : user.profile,
             comment,
             createdAt: new Date().toISOString(),
-            replies: []
+            replies: [] // ✅ Ensure replies is an array
         };
 
-        comments.push(newComment);
-        await post.update({ comments });
+        // ✅ Push the new comment
+        commentsArray.push(newComment);
+
+        // ✅ Update post in database
+        await Post.update(
+            { comments: commentsArray }, // ✅ Update JSONB column
+            { where: { id: post.id } }
+        );
 
         console.log(`📝 ${user.username} commented on post ${post.id}`);
 
-        // ✅ Ensure `dailyVibePoints` is an object
-        if (!user.dailyVibePoints || typeof user.dailyVibePoints !== "object") {
-            user.dailyVibePoints = { comment: 0, remainingLimit: 50 };
-        }
+        // ✅ Award VibeScore for commenting
+        await updateVibeScore(userId, 1, "comment");
 
-        // ✅ Reset daily comment count if it's a new day
-        const today = new Date().toISOString().split("T")[0];
-        if (user.lastVibeUpdate !== today) {
-            console.log(`🔄 Resetting daily comment count for ${user.username}`);
-            user.dailyVibePoints.comment = 0;
-            user.dailyVibePoints.remainingLimit = 50; // ✅ Reset daily limit
-            user.lastVibeUpdate = today;
-        }
-
-        // ✅ Increment daily comment count
-        user.dailyVibePoints.comment += 1;
-        console.log(`📝 ${user.username} has commented ${user.dailyVibePoints.comment} times today.`);
-
-        // ✅ Check if it's the 5th comment to award VibeScore
-        if (user.dailyVibePoints.comment % 5 === 0) {
-            console.log(`🔥 ${user.username} reached ${user.dailyVibePoints.comment} comments. Awarding 1 VibeScore.`);
-
-            await updateVibeScore(userId, 1, "comment"); // ✅ Increase VibeScore and deduct limit inside function
-        }
-
-        // ✅ Explicitly save dailyVibePoints
-        user.set("dailyVibePoints", user.dailyVibePoints);
-        await user.save();
-
-        return response.status(200).json({ message: "Comment added successfully", comments });
+        return response.status(200).json({ message: "Comment added successfully", comments: commentsArray });
     } catch (error) {
         console.error("❌ Error adding comment:", error);
         return response.status(500).json({ message: "Internal server error", error: error.message });
@@ -857,6 +1303,85 @@ async comment(request: MyRequest, response: Response) {
 
 
 
+
+
+// async replyComment(request: MyRequest, response: Response) {
+//     try {
+//         const authHeader = request.headers.authorization;
+//         if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//             return response.status(401).json({ message: "Missing or invalid token" });
+//         }
+
+//         const token = authHeader.split(" ")[1];
+//         let decodedToken;
+//         try {
+//             decodedToken = jwt.verify(token, SECRET_KEY);
+//         } catch (err) {
+//             return response.status(401).json({ message: "Invalid or expired token" });
+//         }
+
+//         const userId = decodedToken.userId;
+//         const username = decodedToken.username;
+//         if (!username) {
+//             return response.status(401).json({ message: "Unauthorized: No username found in JWT" });
+//         }
+
+//         const { post_id, comment_idx } = request.params;
+//         const { reply } = request.body;
+
+//         if (!reply) {
+//             return response.status(400).json({ message: "Reply cannot be empty" });
+//         }
+
+//         const post = await Post.findByPk(post_id);
+//         if (!post || !post.comments || post.comments.length <= parseInt(comment_idx)) {
+//             return response.status(404).json({ message: "Post or comment not found" });
+//         }
+
+//         const user = await User.findOne({ where: { username } });
+//         if (!user) {
+//             return response.status(404).json({ message: "User not found" });
+//         }
+
+//         const comment = post.comments[parseInt(comment_idx)];
+
+//         if (!comment) {
+//             return response.status(400).json({ message: "Invalid comment: missing details" });
+//         }
+
+//         // ✅ Get the correct display name based on anonymity
+//         const displayAuthor = user.isAnonymous ? user.anonymousName : username;
+
+//         let comments = [...post.comments];
+
+//         if (!Array.isArray(comments[parseInt(comment_idx)].replies)) {
+//             comments[parseInt(comment_idx)].replies = [];
+//         }
+
+//         const newReply = {
+//             username,
+//             displayAuthor, // ✅ Store anonymous name or real name
+//             profilePic: user.isAnonymous ? user.anonymousProfile : user.profile,
+//             reply,
+//             createdAt: new Date().toISOString()
+//         };
+
+//         comments[parseInt(comment_idx)].replies.push(newReply);
+
+//         await Post.update(
+//             { comments: comments },
+//             { where: { id: post.id } }
+//         );
+
+//         return response.status(200).json({
+//             message: "Reply added successfully",
+//             comments
+//         });
+//     } catch (error) {
+//         console.error("❌ Error adding reply:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
 
 
 async replyComment(request: MyRequest, response: Response) {
@@ -903,8 +1428,9 @@ async replyComment(request: MyRequest, response: Response) {
             return response.status(400).json({ message: "Invalid comment: missing details" });
         }
 
-        // ✅ Get the correct display name based on anonymity
-        const displayAuthor = user.isAnonymous ? user.anonymousName : username;
+        // ✅ Store anonymity status at the time of replying
+        const displayAuthor = user.isAnonymous ? user.anonymousName || "Anonymous" : username;
+        const profilePic = user.isAnonymous ? user.anonymousProfile : user.profile;
 
         let comments = [...post.comments];
 
@@ -914,8 +1440,8 @@ async replyComment(request: MyRequest, response: Response) {
 
         const newReply = {
             username,
-            displayAuthor, // ✅ Store anonymous name or real name
-            profilePic: user.isAnonymous ? user.anonymousProfile : user.profile,
+            displayAuthor, // ✅ Store static display name
+            profilePic, // ✅ Store static profile picture
             reply,
             createdAt: new Date().toISOString()
         };
@@ -936,8 +1462,6 @@ async replyComment(request: MyRequest, response: Response) {
         return response.status(500).json({ message: "Internal server error", error: error.message });
     }
 }
-
-
 
 
 
@@ -1159,6 +1683,65 @@ async getPostById(request: MyRequest, response: Response) {
 
 
 
+// async incrementView(request: MyRequest, response: Response) {
+//     try {
+//         const { id } = request.params;
+
+//         if (!id) {
+//             return response.status(400).json({ message: "Post ID is required" });
+//         }
+
+//         const post = await Post.findByPk(id);
+
+//         if (!post) {
+//             return response.status(404).json({ message: "Post not found" });
+//         }
+
+//         const authHeader = request.headers.authorization;
+//         let userId = "guest"; // Default for guest users
+
+//         if (authHeader && authHeader.startsWith("Bearer ")) {
+//             const token = authHeader.split(" ")[1];
+//             let decodedToken;
+//             try {
+//                 decodedToken = jwt.verify(token, SECRET_KEY);
+//             } catch (err) {
+//                 return response.status(401).json({ message: "Invalid or expired token" });
+//             }
+
+//             userId = decodedToken.userId; // Get user ID from JWT
+//         }
+
+//         // ✅ Ensure `viewedUsers` is an array
+//         let viewedUsers = Array.isArray(post.viewedUsers) ? post.viewedUsers : [];
+
+//         // ✅ Prevent duplicate views from the same user
+//         if (!viewedUsers.includes(userId)) {
+//             viewedUsers.push(userId);
+
+//             // ✅ Increment views count and update in the database
+//             await post.update({
+//                 views: post.views + 1,
+//                 viewedUsers: viewedUsers
+//             });
+
+//             return response.status(200).json({
+//                 message: "View counted successfully",
+//                 views: post.views + 1 // Return updated views count
+//             });
+//         } else {
+//             return response.status(200).json({
+//                 message: "User has already viewed this post",
+//                 views: post.views
+//             });
+//         }
+
+//     } catch (error) {
+//         console.error("❌ Error updating views:", error);
+//         return response.status(500).json({ message: "Internal server error", error: error.message });
+//     }
+// }
+
 async incrementView(request: MyRequest, response: Response) {
     try {
         const { id } = request.params;
@@ -1167,12 +1750,13 @@ async incrementView(request: MyRequest, response: Response) {
             return response.status(400).json({ message: "Post ID is required" });
         }
 
+        // ✅ Find the post
         const post = await Post.findByPk(id);
-
         if (!post) {
             return response.status(404).json({ message: "Post not found" });
         }
 
+        // ✅ Extract user info from JWT token (or set as "guest")
         const authHeader = request.headers.authorization;
         let userId = "guest"; // Default for guest users
 
@@ -1181,11 +1765,10 @@ async incrementView(request: MyRequest, response: Response) {
             let decodedToken;
             try {
                 decodedToken = jwt.verify(token, SECRET_KEY);
+                userId = decodedToken.userId; // ✅ Get logged-in user ID
             } catch (err) {
                 return response.status(401).json({ message: "Invalid or expired token" });
             }
-
-            userId = decodedToken.userId; // Get user ID from JWT
         }
 
         // ✅ Ensure `viewedUsers` is an array
@@ -1193,7 +1776,7 @@ async incrementView(request: MyRequest, response: Response) {
 
         // ✅ Prevent duplicate views from the same user
         if (!viewedUsers.includes(userId)) {
-            viewedUsers.push(userId);
+            viewedUsers.push(userId); // ✅ Add user ID to viewedUsers array
 
             // ✅ Increment views count and update in the database
             await post.update({
@@ -1201,11 +1784,15 @@ async incrementView(request: MyRequest, response: Response) {
                 viewedUsers: viewedUsers
             });
 
+            console.log(`✅ View counted for user: ${userId} on post ${post.id}`);
+
             return response.status(200).json({
                 message: "View counted successfully",
                 views: post.views + 1 // Return updated views count
             });
         } else {
+            console.log(`👀 User ${userId} already viewed post ${post.id}`);
+
             return response.status(200).json({
                 message: "User has already viewed this post",
                 views: post.views
@@ -1217,7 +1804,6 @@ async incrementView(request: MyRequest, response: Response) {
         return response.status(500).json({ message: "Internal server error", error: error.message });
     }
 }
-
 
 
 async searchPostsByCategory(request: MyRequest, response: Response) {
